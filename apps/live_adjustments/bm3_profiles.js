@@ -78,6 +78,7 @@ const layouts = [
             "F4C9L8G03",
             "F4C9L8G04",
             "F4C9L8G06",
+            "F4C9L8G7B",
             "F4C9L8J00",
             "F4C9L8J01",
             "F4C9L8J02",

@@ -1,6 +1,6 @@
 # 翻译署名与来源
 
-简体中文翻译 Translation by：**抖音 小白科技杂物社 / BiliBili 小白151 / GitHub JackieZ123430**。
+简体中文翻译 Translation by：**LEON HAU**。
 
 - 翻译仓库：https://github.com/JackieZ123430/idrive7-apps-cn
 - 上游项目：https://github.com/cauliflowermossgrape/idrive7-apps

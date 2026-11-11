@@ -1,5 +1,5 @@
 """Fixed-language packages. Add a locales/<tag>.json catalog to build another language."""
-# Translation by: 抖音 小白科技杂物社 / BiliBili 小白151 / GitHub JackieZ123430
+# Translation by: LEON HAU
 import copy
 import json
 from pathlib import Path

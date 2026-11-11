@@ -338,7 +338,7 @@ database translation is included with `zh-CN`. `kit/tools/import_diagnostic_ru.p
 Russian catalog from your own EN/RU `DiagDocDb` databases without changing the bundled English
 `dtc_db.pack`.
 
-Chinese translation by 小白151
+Chinese translation by LEON HAU
 ([JackieZ123430](https://github.com/JackieZ123430), [idrive7-apps-cn](https://github.com/JackieZ123430/idrive7-apps-cn));
 guides: [中文](README.zh-CN.md), [Русский](README.ru.md).
 

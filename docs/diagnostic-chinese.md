@@ -68,8 +68,7 @@ budget and is copied only into the Simplified Chinese Fault Scanner package.
 
 ## Credits
 
-Translation by: 抖音 小白科技杂物社 / BiliBili 小白151 /
-GitHub [JackieZ123430](https://github.com/JackieZ123430).
+Translation by: LEON HAU.
 The translation credit ships in Chinese (zh-CN) builds only: the settings rows, the
 header corner and the entry file's comment, all from `kit/localization/credit.zh-CN.json`.
 English builds carry no translation credit.

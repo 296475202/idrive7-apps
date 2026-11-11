@@ -46,3 +46,11 @@ kit/tools/.font-cache/
 /kit/renderd/core
 /apps/zf8hp/data/
 egs-snapshot*.json
+
+# Local Windows packaging tooling (not part of the app repo)
+/tool/
+# Local diagnostic scratch and bundled webpack artifact
+/own-app.js
+/sniff_dme_27.py
+/sniff_result.txt
+apps/live_adjustments/bm3_protocol1.js

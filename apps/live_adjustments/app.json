@@ -272,6 +272,7 @@
     }
   ],
   "config": {
-    "bm3MarkerAddress": "807FFE50"
+    "bm3MarkerAddress": "807FFE50",
+    "bm3RomFallback": "F4C9L8G7B"
   }
 }
