@@ -12,7 +12,7 @@ name: sync upstream and publish zh apps
 #
 # The car's source:
 #   {"id": "idrive7-apps-zh", "type": "github",
-#    "repo": "296475202/idrive7-apps-cn", "channel": "branch:zh-apps"}
+#    "repo": "296475202/idrive7-apps", "channel": "branch:zh-apps"}
 #
 # Force-push an unchanged tree is skipped, so the car sees a new version only
 # when upstream actually changed: the patch bumps each app one patch above
