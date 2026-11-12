@@ -117,6 +117,7 @@ const layouts = [
             "R4C9H5W02",
             "R4C9H6K00",
             "R4C9H6K02",
+            "R4C9H6K5B",
             "R4C9H6N00",
             "R4C9H6N02",
             "R4C9H6P00",
