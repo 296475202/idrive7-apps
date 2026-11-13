@@ -10,12 +10,14 @@ It changes seven things and nothing else:
 
 1. kit/localization/credit.zh-CN.json: the fork's credit file (Translation by:
    LEON HAU, corner + settings + comment), copied over upstream's.
-2. apps/live_adjustments/bm3_profiles.js: the ROM F4C9L8G7B added to the
-   multimap profile list, after F4C9L8G06.
+2. apps/live_adjustments/bm3_profiles.js: the ROMs in ROMS added to the
+   multimap profile list, each after the last entry of its own series
+   (F4C9L8G7B after F4C9L8G*, R4C9H6K5B after R4C9H6K*).
 3. apps/live_adjustments/bm3_protocol.js: identify()'s marker read wrapped in
    try/catch so a flash-locked DME (NRC 33) falls back to config.bm3RomFallback
    instead of failing the BM3 tab.
-4. apps/live_adjustments/app.json: config.bm3RomFallback = "F4C9L8G7B".
+4. apps/live_adjustments/app.json: config.bm3RomFallback = ROMS[-1] (the unit
+   the fallback names by default).
 5. mgu-repo.json: the unit's build gets --language zh-CN, so every app the car
    builds from this branch is Chinese.
 6. kit/tools/test_zh.py: the credit it asserts is the fork's.
@@ -35,7 +37,10 @@ import sys
 KIT = pathlib.Path(__file__).resolve().parent
 ROOT = KIT.parent
 
-ROM = "F4C9L8G7B"
+# Every ROM whose marker read a flash-locked DME refuses (NRC 33). All of them
+# go into the profile list; the last one is the fallback the app ships naming.
+ROMS = ("F4C9L8G7B", "R4C9H6K5B")
+ROM = ROMS[-1]
 ROM_ANCHOR = "F4C9L8G06"
 FALLBACK_KEY = "bm3RomFallback"
 CREDIT = "Translation by: LEON HAU"
@@ -72,19 +77,40 @@ def credit():
     return "credit.zh-CN.json already the fork's"
 
 
-def rom_list():
-    """bm3_profiles.js: F4C9L8G7B in the layouts list, after F4C9L8G06."""
-    path = ROOT / "apps" / APP_ID / "bm3_profiles.js"
-    text = read(path)
-    if '"%s"' % ROM in text:
-        return "bm3_profiles.js already lists " + ROM
+def insert_rom(text, rom):
+    """Put one ROM after the last entry of its own series (ROM minus last two).
+
+    Returns (text, inserted). A series that is not in the list yet falls back to
+    the known F4C9L8G anchor, which keeps an upstream reshuffle visible as a
+    failure rather than a silent wrong layout."""
+    if '"%s"' % rom in text:
+        return text, False
+    stem = rom[:-2]
+    siblings = list(re.finditer(
+        r'(?m)^([ \t]*)"%s[0-9A-Za-z]{2}",[ \t]*$' % re.escape(stem), text))
+    if siblings:
+        last = siblings[-1]
+        insert = "\n%s\"%s\"," % (last.group(1), rom)
+        return text[:last.end()] + insert + text[last.end():], True
     anchor = re.search(r'(?m)^([ \t]*)"%s",[ \t]*$' % ROM_ANCHOR, text)
     if not anchor:
-        fail("bm3_profiles.js: no \"" + ROM_ANCHOR + "\" line to insert " + ROM + " after")
-    insert = "%s\n%s\"%s\"," % (anchor.group(0), anchor.group(1), ROM)
-    text = text[:anchor.start()] + insert + text[anchor.end():]
+        fail("bm3_profiles.js: no \"" + ROM_ANCHOR + "\" line to insert " + rom + " after")
+    insert = "%s\n%s\"%s\"," % (anchor.group(0), anchor.group(1), rom)
+    return text[:anchor.start()] + insert + text[anchor.end():], True
+
+
+def rom_list():
+    """bm3_profiles.js: every ROM in ROMS in the layouts list."""
+    path = ROOT / "apps" / APP_ID / "bm3_profiles.js"
+    text = read(path)
+    added, present = [], []
+    for rom in ROMS:
+        text, ok = insert_rom(text, rom)
+        (added if ok else present).append(rom)
+    if not added:
+        return "bm3_profiles.js already lists " + ", ".join(ROMS)
     write(path, text)
-    return "bm3_profiles.js: " + ROM + " added"
+    return "bm3_profiles.js: " + ", ".join(added) + " added"
 
 
 def protocol_fallback():
