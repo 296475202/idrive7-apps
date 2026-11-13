@@ -73,12 +73,22 @@ class Bm3Protocol {
     async identify() {
         this.profile = null;
         this.rom = null;
-        const addr = addressBytes(this.config.bm3MarkerAddress);
-        // Defining an existing dynamic DID appends entries; clear F301 before replacing it.
-        await this.request(0x2C, [0x03, 0xF3, 0x01], [0x03, 0xF3, 0x01]);
-        await this.request(0x2C, [0x02, 0xF3, 0x01, 0x24].concat(addr, [0, MARKER_SIZE]), [0x02, 0xF3, 0x01]);
-        const marker = await this.request(0x22, [0xF3, 0x01], [0xF3, 0x01]);
-        const rom = markerRom(marker, this.profiles);
+        let rom = null;
+        try {
+            const addr = addressBytes(this.config.bm3MarkerAddress);
+            // Defining an existing dynamic DID appends entries; clear F301 before replacing it.
+            await this.request(0x2C, [0x03, 0xF3, 0x01], [0x03, 0xF3, 0x01]);
+            await this.request(0x2C, [0x02, 0xF3, 0x01, 0x24].concat(addr, [0, MARKER_SIZE]), [0x02, 0xF3, 0x01]);
+            const marker = await this.request(0x22, [0xF3, 0x01], [0xF3, 0x01]);
+            rom = markerRom(marker, this.profiles);
+        } catch (e) {
+            // Flash read locked (NRC 33): the marker is unavailable, but the
+            // RAM map variable still reads and writes without security, so
+            // fall back to the ROM this unit is known to run.
+            const fallback = this.config.bm3RomFallback;
+            if (!fallback || !this.profiles[fallback]) throw e;
+            rom = fallback;
+        }
         const profile = this.profiles[rom];
         if (!profile || !profile.mapSwActAddr || profile.rom !== rom) throw new Error('BM3 profile unavailable');
         this.rom = rom;

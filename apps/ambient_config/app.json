@@ -2,7 +2,7 @@
   "id": "ambient_config",
   "title": "Ambient config",
   "description": "Any colour on the ambient light, animations, and a look for each driving mode",
-  "version": "2.4.4",
+  "version": "2.4.5",
   "vendor": "custom",
   "loggingId": "OAA4",
   "iconGlyph": "ambient",
@@ -143,7 +143,16 @@
       "type": "choice",
       "default": "all",
       "hidden": true,
-      "options": [["all", "All lights"], ["high", "High beam"]]
+      "options": [
+        [
+          "all",
+          "All lights"
+        ],
+        [
+          "high",
+          "High beam"
+        ]
+      ]
     },
     {
       "key": "strobeEvery",
@@ -151,7 +160,28 @@
       "type": "choice",
       "default": "0",
       "hidden": true,
-      "options": [["0", "Max"], ["250", "4"], ["333", "3"], ["500", "2"], ["1000", "1"]]
+      "options": [
+        [
+          "0",
+          "Max"
+        ],
+        [
+          "250",
+          "4"
+        ],
+        [
+          "333",
+          "3"
+        ],
+        [
+          "500",
+          "2"
+        ],
+        [
+          "1000",
+          "1"
+        ]
+      ]
     },
     {
       "key": "policeBurst",
@@ -159,7 +189,24 @@
       "type": "choice",
       "default": "4",
       "hidden": true,
-      "options": [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]]
+      "options": [
+        [
+          "1",
+          "1"
+        ],
+        [
+          "2",
+          "2"
+        ],
+        [
+          "3",
+          "3"
+        ],
+        [
+          "4",
+          "4"
+        ]
+      ]
     },
     {
       "key": "strobeFlashMs",
@@ -167,7 +214,24 @@
       "type": "choice",
       "default": "80",
       "hidden": true,
-      "options": [["50", "50 ms"], ["80", "80 ms"], ["100", "100 ms"], ["150", "150 ms"]]
+      "options": [
+        [
+          "50",
+          "50 ms"
+        ],
+        [
+          "80",
+          "80 ms"
+        ],
+        [
+          "100",
+          "100 ms"
+        ],
+        [
+          "150",
+          "150 ms"
+        ]
+      ]
     },
     {
       "key": "policeOrder",
@@ -175,7 +239,20 @@
       "type": "choice",
       "default": "lbr",
       "hidden": true,
-      "options": [["lbr", "Left, both, right"], ["lrb", "Left, right, both"], ["lr", "Left, right"]]
+      "options": [
+        [
+          "lbr",
+          "Left, both, right"
+        ],
+        [
+          "lrb",
+          "Left, right, both"
+        ],
+        [
+          "lr",
+          "Left, right"
+        ]
+      ]
     },
     {
       "key": "strobePattern",
@@ -183,7 +260,20 @@
       "type": "choice",
       "default": "police",
       "hidden": true,
-      "options": [["police", "Police"], ["both", "Strobe"], ["alternate", "In turn"]]
+      "options": [
+        [
+          "police",
+          "Police"
+        ],
+        [
+          "both",
+          "Strobe"
+        ],
+        [
+          "alternate",
+          "In turn"
+        ]
+      ]
     },
     {
       "key": "strobeRate",
@@ -191,7 +281,20 @@
       "type": "choice",
       "default": "normal",
       "hidden": true,
-      "options": [["fast", "Fast"], ["normal", "Normal"], ["slow", "Slow"]]
+      "options": [
+        [
+          "fast",
+          "Fast"
+        ],
+        [
+          "normal",
+          "Normal"
+        ],
+        [
+          "slow",
+          "Slow"
+        ]
+      ]
     },
     {
       "key": "showRate",
@@ -199,7 +302,16 @@
       "type": "choice",
       "default": "normal",
       "hidden": true,
-      "options": [["fast", "Fast"], ["normal", "Normal"]]
+      "options": [
+        [
+          "fast",
+          "Fast"
+        ],
+        [
+          "normal",
+          "Normal"
+        ]
+      ]
     },
     {
       "key": "drive",

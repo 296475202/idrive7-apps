@@ -2,7 +2,7 @@
   "id": "edrive",
   "title": "eDrive",
   "description": "Real electric range, live battery power, cells and climate power, HV battery health (SOH) and energy, last charge, charge log, the 12 V battery (charge, voltage, what it does, regen, history) and a home-screen widget; on a 48 V mild hybrid its 48 V battery and DC/DC converter",
-  "version": "2.9.1",
+  "version": "2.9.2",
   "vendor": "custom",
   "loggingId": "OA9C",
   "iconGlyph": "battery",
@@ -121,7 +121,12 @@
   "settings": [
     {
       "key": "range20",
-      "when": { "hybrid": ["auto", "yes"] },
+      "when": {
+        "hybrid": [
+          "auto",
+          "yes"
+        ]
+      },
       "label": "Electric range when full, 20 °C",
       "type": "number",
       "unit": "km",
@@ -143,7 +148,12 @@
     },
     {
       "key": "reserve",
-      "when": { "hybrid": ["auto", "yes"] },
+      "when": {
+        "hybrid": [
+          "auto",
+          "yes"
+        ]
+      },
       "label": "Engine starts at",
       "type": "choice",
       "default": "auto",
@@ -220,7 +230,12 @@
     },
     {
       "key": "designKwh",
-      "when": { "hybrid": ["auto", "yes"] },
+      "when": {
+        "hybrid": [
+          "auto",
+          "yes"
+        ]
+      },
       "label": "Battery size when new (gross)",
       "type": "number",
       "unit": "kWh",
@@ -241,7 +256,12 @@
     },
     {
       "key": "price",
-      "when": { "hybrid": ["auto", "yes"] },
+      "when": {
+        "hybrid": [
+          "auto",
+          "yes"
+        ]
+      },
       "label": "Electricity price",
       "type": "number",
       "unit": "EUR/kWh",
@@ -411,8 +431,14 @@
       "type": "choice",
       "default": "fast",
       "options": [
-        ["fast", "Fast (the car's eDRIVE needle)"],
-        ["readings", "Battery readings only"]
+        [
+          "fast",
+          "Fast (the car's eDRIVE needle)"
+        ],
+        [
+          "readings",
+          "Battery readings only"
+        ]
       ]
     },
     {
