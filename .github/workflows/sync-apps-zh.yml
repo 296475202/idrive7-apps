@@ -13,9 +13,10 @@ name: sync upstream and publish zh apps
 #   {"id": "idrive7-apps-zh", "type": "github",
 #    "repo": "296475202/idrive7-apps", "channel": "branch:zh-apps"}
 #
-# Force-push an unchanged tree is skipped, so the car sees a new version only
-# when upstream actually changed: the patch bumps each app one patch above
-# upstream, deterministically.
+# Force-push an unchanged tree is skipped. The patch always raises each app one
+# patch above whichever is newer - upstream's version or the one already on
+# zh-apps - so a fork-only fix still publishes as a new number the car's store
+# will offer, while a run with nothing new stays quiet.
 on:
   schedule:
     - cron: '41 3 * * *'
@@ -51,6 +52,11 @@ jobs:
         with:
           python-version: '3.12'
       - name: Patch (credit, BM3 fallback, zh-CN build args, version bump)
+        env:
+          # The reset step fetched the current zh-apps last, so FETCH_HEAD is the
+          # published side of the version bump (a fork-only fix must still get a
+          # new number).
+          ZH_PUBLISHED_REF: FETCH_HEAD
         run: python3 zh-apps-kit/patch.py
       - name: Sanity check the Chinese layer
         run: python3 kit/tools/test_zh.py

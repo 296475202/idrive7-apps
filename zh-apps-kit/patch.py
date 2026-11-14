@@ -25,8 +25,11 @@ It changes eight things and nothing else:
 6. kit/tools/test_zh.py: the credit it asserts is the fork's.
 7. kit/tools/test_bm3_protocol.js: the bundled-profile count it asserts is the
    number of ROMs this branch lists, not upstream's.
-8. every apps/<id>/app.json: version x.y.z -> x.y.(z+1), so this fork's catalog
-   is always the newest the store sees (js/catalog.js compares only x.y.z).
+8. every apps/<id>/app.json: version x.y.z -> one patch above whichever is
+   newer, upstream's version or the one already published on zh-apps. Version
+   is strictly three integers (the store compares only x.y.z, and the build appends
+   its own -zh.cn.N suffix); a fork-only fix therefore still lands as a new
+   number instead of hiding behind upstream's.
 
 Every step is idempotent and deterministic. A step whose upstream anchors have
 moved stops the run with exit 1 and says which file — that is the review point
@@ -37,8 +40,11 @@ from.
 """
 
 import json
+import os
 import pathlib
 import re
+import shutil
+import subprocess
 import sys
 
 KIT = pathlib.Path(__file__).resolve().parent
@@ -53,6 +59,12 @@ FALLBACK_KEY = "bm3RomFallback"
 CREDIT = "Translation by: LEON HAU"
 
 APP_ID = "live_adjustments"
+
+# Where to read the version this fork already publishes. The workflow points it
+# at the zh-apps commit it just fetched; a local run falls back to the remote
+# tracking refs that usually exist.
+PUBLISHED_REF_ENV = "ZH_PUBLISHED_REF"
+PUBLISHED_REFS = ("origin/zh-apps", "mine/zh-apps")
 
 
 def fail(message):
@@ -284,16 +296,69 @@ def verify():
     return "three tiers, %d ROMs and %s verified" % (len(ROMS), ROM)
 
 
+def version_tuple(text):
+    """x.y.z -> (x, y, z); anything else -> None. Three integers is the only form
+    the store compares, and the build appends its own -zh.cn.N suffix later."""
+    parts = str(text).split(".")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        return None
+    return tuple(int(p) for p in parts)
+
+
+def git_binary():
+    """git from PATH, or the usual Windows install when PATH does not carry it."""
+    found = shutil.which("git")
+    if found:
+        return found
+    fallback = r"C:\Program Files\Git\cmd\git.exe"
+    return fallback if os.name == "nt" and os.path.exists(fallback) else ""
+
+
+def published_version(app_id):
+    """The version this fork already publishes for app_id, or '' when unknown.
+
+    A fork-only fix does not move upstream's version, so bumping from upstream
+    alone would ship new code under the old number and the car's store would
+    never offer it."""
+    git = git_binary()
+    if not git:
+        return ""
+    refs = [os.environ.get(PUBLISHED_REF_ENV)] + list(PUBLISHED_REFS)
+    for ref in refs:
+        if not ref:
+            continue
+        try:
+            show = subprocess.run(
+                [git, "-C", str(ROOT), "show", "%s:apps/%s/app.json" % (ref, app_id)],
+                capture_output=True, text=True)
+        except OSError:
+            return ""
+        if show.returncode != 0:
+            continue
+        try:
+            return str(json.loads(show.stdout).get("version") or "")
+        except ValueError:
+            continue
+    return ""
+
+
 def bump_versions():
-    """every app: x.y.z -> x.y.(z+1), so this fork's catalog outranks upstream's."""
+    """every app: one patch above whichever is newer - upstream's or the published one.
+
+    That keeps the number monotone across runs: a fork-only fix still gets a new
+    version, and a later upstream bump is taken when it overtakes this branch."""
     bumped = []
     for manifest in sorted((ROOT / "apps").glob("*/app.json")):
         doc = json.loads(read(manifest))
+        app_id = doc.get("id") or manifest.parent.name
         version = str(doc.get("version") or "")
-        parts = version.split(".")
-        if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        base = version_tuple(version)
+        if base is None:
             fail("%s version %r is not x.y.z" % (manifest.relative_to(ROOT), version))
-        new = "%s.%s.%d" % (parts[0], parts[1], int(parts[2]) + 1)
+        published = version_tuple(published_version(app_id))
+        if published and published > base:
+            base = published
+        new = "%d.%d.%d" % (base[0], base[1], base[2] + 1)
         doc["version"] = new
         write(manifest, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
         bumped.append("%s %s -> %s" % (doc.get("id") or manifest.parent.name, version, new))
