@@ -20,7 +20,7 @@ flap's butterfly turning in the right tailpipe, and four buttons:
 | Open | the flap open |
 | Close | the flap closed (the rpm guard below) |
 | OEM | the flap handed back to the DME |
-| Drive mode | the flap follows the driving mode (FES) on every change: Sport / Sport+ / Sport Individual → Open; Comfort / Comfort+ / Comfort Individual / Adaptive → OEM; Eco Pro / Eco Pro+ / Eco Pro Individual → Close. The line under the state word names the driving mode. Open, Close or OEM stop following it. Saved with the settings (key `driveLink`, not in the menu), so it is still on after the next start |
+| Drive mode | the flap follows the driving mode (FES) on every change: Sport / Sport+ / Sport Individual → Open; Comfort / Comfort+ / Comfort Individual / Adaptive → OEM; Eco Pro / Eco Pro+ / Eco Pro Individual → Close. On a plug-in hybrid (330e, X5 45e ...): Sport / Sport Individual / Sport+ / Boost → Open; Hybrid / Hybrid Comfort → OEM; Hybrid Eco / Electric / Electric Individual → Close. The line under the state word names the driving mode. Open, Close or OEM stop following it. Saved with the settings (key `driveLink`, not in the menu), so it is still on after the next start |
 
 What the flap should do is `auto.js`; every command still goes through `controller.js`.
 
@@ -66,6 +66,11 @@ app. Over ENET, `2F 01 01` was echoed and the engine note changed (map 2), and `
 the check engine light flash (MHD's map-change indication) — the map page says that is
 normal. None of the DIDs MHD reads (`22 3010/3020/3030/3031/3032/37FE/586A/4098`) changed
 between map 1 and map 2. BM3: limited smoke testing on one G22 (as the former BM3 Live app).
+
+**PIN for Engine Map and Burbles** (setting, off by default): the Engine Map and Burbles tabs show a keypad
+until the PIN is entered (one PIN, one unlock for both). Turned on, it asks for a new 4-digit PIN twice. It locks again whenever the app leaves the screen;
+5 wrong PINs block it for 60 s. Turning the setting off asks for the PIN first. Only a salted hash is saved
+(`mapPinCode`). Forgot it: delete the app's `settings.json` or reinstall the app.
 
 **Other tuning software** (MG Flasher and others): add a choice to the `tuner` setting in
 `app.json`, its tabs to `FEATURES` in `tune.js` and its commands there, with a test case in

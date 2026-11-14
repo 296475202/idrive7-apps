@@ -270,6 +270,34 @@ test('settings: aliases, "when" and "group" (the drawn settings sheet), "hidden"
     assert(sc.rows().length > 0 && !sc.rows().some((x) => x.label === 'Logs'), 'a failing extra list: the settings still');
 });
 
+test('settings: a number kept in kW / °C shown in the unit chosen ("unitBy", issue #173)', async () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'runtime', 'mgu.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cls = src.match(/class Settings[\s\S]*?\n}\n/)[0];
+    const dd = path.join(dir, 'unitby');
+    fs.mkdirSync(dd);
+    const S = new Function('fs', 'path', 'DATA_DIR', 'log', cls + '\nreturn Settings;')(fs, path, dd, { warn() {}, error() {} });
+    const schema = [
+        { key: 'powerUnit', label: 'Power unit', type: 'choice', default: 'kw', options: [['kw', 'kW'], ['hp', 'hp'], ['ps', 'PS']] },
+        { key: 'tempUnit', label: 'Temperature unit', type: 'choice', default: 'c', options: [['c', 'Celsius'], ['f', 'Fahrenheit']] },
+        { key: 'maxPower', label: 'Max power', type: 'number', unit: 'kW', unitBy: 'powerUnit', units: { hp: { unit: 'hp', mul: 1.34102 }, ps: { unit: 'PS', mul: 1.35962 } }, default: 215, steps: [200, 215] },
+        { key: 'oilWarn', label: 'Oil temp warning', type: 'number', unit: '°C', unitBy: 'tempUnit', units: { f: { unit: '°F', mul: 1.8, add: 32 } }, default: 125, steps: [120, 125], labels: { 120: 'Low' } },
+    ];
+    const st = new S(schema);
+    assert.deepStrictEqual([st.display('maxPower'), st.display('oilWarn')], ['215 kW', '125 °C']);
+    st.set('powerUnit', 'hp'); st.set('tempUnit', 'f');
+    assert.deepStrictEqual([st.display('maxPower'), st.display('oilWarn')], ['288 hp', '257 °F']);
+    st.set('powerUnit', 'ps');
+    assert.strictEqual(st.display('maxPower'), '292 PS');
+    assert.strictEqual(st.get('maxPower'), 215, 'kept in kW');
+    const { listSheet } = require(path.join(__dirname, '..', 'runtime', 'sheet.js'));
+    const sh = listSheet(st, null, {});
+    sh.focus = 2; sh.choose();
+    assert.deepStrictEqual(sh.rows().map((r) => r.label), ['272 PS', '292 PS'], 'the value list in the unit chosen');
+    sh.back();
+    sh.focus = 3; sh.choose();
+    assert.deepStrictEqual(sh.rows().map((r) => r.label), ['Low', '257 °F'], 'a value\'s own label stays');
+});
+
 test('a new scale keeps the uploads (the renderer keeps them), a new size sends them again', async () => {
     const t = await setup(), g = t.d.gpu;
     try {
@@ -280,6 +308,36 @@ test('a new scale keeps the uploads (the renderer keeps them), a new size sends 
         assert(!g.sent.layer.has(4), 'layers drawn at the old scale');
         g.place(Object.assign({}, pl, { w: pl.w - 8 }));
         assert.deepStrictEqual([g.sent.atlas.size, g.sent.ramp.size, g.sent.image.size], [0, 0, 0], 'a new size');
+    } finally { t.end(); }
+});
+
+test('in front without the controller (another renderer held it at connect): connected again, the controller then', async () => {
+    const t = await setup();
+    try {
+        // the renderer offering no controller on this connection, as when the Store's renderer held it
+        let conns = 0, now = null;
+        onConn = (c) => { conns++; now = c; c.send(X_READY, u32(1, 1, 7)); c.send(READY, u32(4, 1920, 720, 1)); };
+        t.d.gpu.info.controller = false; t.d.ctlTryT = 0;
+        t.c.send(X_STATE, u32(1, 0, 1));
+        assert(await waitFor(() => conns === 1 && t.d.gpu.ready && t.d.gpu.info && t.d.gpu.info.controller, 3000), 'connected again at once, the controller offered');
+        assert(await waitFor(() => t.d.gpu.grabbing, 1000), 'and taken');
+        // not again within 30 s, nor with the controller there
+        now.send(X_STATE, u32(1, 0, 1)); await sleep(200);
+        assert.strictEqual(conns, 1, 'once');
+        assert.strictEqual(t.d.ctlTries, 1, 'one try counted');
+    } finally { t.end(); }
+});
+
+test('iDrive 8 (the Store\'s renderer offers no controller there): never connected again for it', async () => {
+    const t = await setup();
+    try {
+        let conns = 0;
+        onConn = () => { conns++; };
+        t.d.gpu.screen = { w: 2880, h: 960 }; t.d.gpu.info.controller = false; t.d.ctlTryT = 0; t.d.ctlTries = 0;
+        t.d._ctlRetry(t.d.gpu);
+        await sleep(300);
+        assert.strictEqual(conns, 0, 'no new connection');
+        assert.strictEqual(t.d.ctlTries, 0, 'no try counted');
     } finally { t.end(); }
 });
 

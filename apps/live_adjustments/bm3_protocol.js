@@ -25,9 +25,24 @@ function binaryMarkerTag(data) {
     return match ? match[1] : null;
 }
 
+function hashMarkerTag(data) {
+    // S58 marker (G87 M2, issue #175): "BM3_" and a binary block, then "#" + ROM (9) + build (5) + "_" + the car's
+    // chassis / drive / market, ended by a NUL. The "#" sits at byte 101 and is the marker's only one.
+    const text = data.toString('latin1'), hash = text.indexOf('#');
+    if (data.length !== MARKER_SIZE || !text.startsWith('BM3_') || hash !== 101 || text.lastIndexOf('#') !== hash) return null;
+    const nul = text.indexOf('\0', hash);
+    const tag = nul < 0 ? null : text.slice(hash + 1, nul);
+    if (!tag || tag.length < 15 || tag[14] !== '_' || !/^[A-Z0-9_]+$/.test(tag) || tag.slice(0, 14).indexOf('_') >= 0) return null;
+    return tag.slice(0, 9);
+}
+
 function markerRom(reply, profiles) {
     positive(reply, 0x22, [0xF3, 0x01]);
-    const data = Buffer.from(reply.slice(3));
+    return markerDataRom(Buffer.from(reply.slice(3)), profiles);
+}
+
+/** The ROM key in the marker's 255 bytes, however they were read. */
+function markerDataRom(data, profiles) {
     if (data.length !== MARKER_SIZE) throw new Error('marker length ' + data.length + '/' + MARKER_SIZE);
     const text = data.toString('latin1');
     const tag = binaryMarkerTag(data);
@@ -37,6 +52,11 @@ function markerRom(reply, profiles) {
             /^[A-Z0-9]{5}$/.test(tag.slice(key.length)));
         if (keys.length !== 1) throw new Error('BM3 ROM key not uniquely matched in binary marker');
         return keys[0];
+    }
+    const rom = hashMarkerTag(data);
+    if (rom) {
+        if (!Object.prototype.hasOwnProperty.call(profiles || {}, rom)) throw new Error('BM3 ROM ' + rom + ' has no profile');
+        return rom;
     }
     if (data.indexOf(Buffer.from('BM3_R')) < 0) throw new Error('BM3 CustomROM marker absent');
     const keys = Object.keys(profiles || {}).filter((key) => text.includes('#' + key));
@@ -73,20 +93,31 @@ class Bm3Protocol {
     async identify() {
         this.profile = null;
         this.rom = null;
-        let rom = null;
+        const addr = addressBytes(this.config.bm3MarkerAddress);
+        let rom;
         try {
-            const addr = addressBytes(this.config.bm3MarkerAddress);
             // Defining an existing dynamic DID appends entries; clear F301 before replacing it.
             await this.request(0x2C, [0x03, 0xF3, 0x01], [0x03, 0xF3, 0x01]);
             await this.request(0x2C, [0x02, 0xF3, 0x01, 0x24].concat(addr, [0, MARKER_SIZE]), [0x02, 0xF3, 0x01]);
             const marker = await this.request(0x22, [0xF3, 0x01], [0xF3, 0x01]);
             rom = markerRom(marker, this.profiles);
         } catch (e) {
-            // Flash read locked (NRC 33): marker unavailable, but the RAM map variable
-            // still reads/writes without security; fall back to the configured ROM.
-            const fallback = this.config.bm3RomFallback;
-            if (!fallback || !this.profiles[fallback]) throw e;
-            rom = fallback;
+            // a DME that refuses the dynamic DID (NRC): the marker read straight from its address (0x23).
+            // Only a refusal: no answer, or a marker without a known ROM, stays an error.
+            if (!/^DME rejected (2C|22)/.test(e.message)) throw e;
+            try {
+                const direct = await this.request(0x23, [0x14].concat(addr, [MARKER_SIZE]), []);
+                rom = markerDataRom(Buffer.from(direct.slice(1)), this.profiles);
+            } catch (refused) {
+                // 0x23 refused too (NRC 33, or 31 for an address outside the readable range):
+                // the flash is read-locked, so no marker of any layout can be read. The RAM
+                // map variable still reads and writes without security, so name the ROM this
+                // unit is known to run instead of failing the BM3 tab.
+                if (!/^DME rejected 23/.test(refused.message)) throw refused;
+                const fallback = this.config.bm3RomFallback;
+                if (!fallback || !this.profiles[fallback]) throw refused;
+                rom = fallback;
+            }
         }
         const profile = this.profiles[rom];
         if (!profile || !profile.mapSwActAddr || profile.rom !== rom) throw new Error('BM3 profile unavailable');
