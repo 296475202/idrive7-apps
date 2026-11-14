@@ -30,7 +30,10 @@ It changes eight things and nothing else:
 
 Every step is idempotent and deterministic. A step whose upstream anchors have
 moved stops the run with exit 1 and says which file — that is the review point
-for an upstream change, not something to paper over.
+for an upstream change, not something to paper over. After the steps, the tree
+is re-read and the run fails if a ROM, the fallback or one of the three tiers is
+missing, so a half-applied tree is never pushed to the branch the car updates
+from.
 """
 
 import json
@@ -260,6 +263,27 @@ def profile_count():
     return "test_bm3_protocol.js: bundled count %d layouts" % count
 
 
+def verify():
+    """Re-read what was written: every tier, every ROM and the fallback must be there.
+
+    The car updates from this branch, so a half-applied tree would ship a BM3 tab
+    that cannot identify its ROM. This runs on the finished tree and fails the run
+    before anything is pushed."""
+    protocol = read(ROOT / "apps" / APP_ID / "bm3_protocol.js")
+    markers = ["DME rejected (2C|22)", "DME rejected 23", FALLBACK_KEY, "markerDataRom"]
+    missing = [marker for marker in markers if marker not in protocol]
+    if missing:
+        fail("bm3_protocol.js: identify() lacks " + ", ".join(missing) + " after patching")
+    profiles = read(ROOT / "apps" / APP_ID / "bm3_profiles.js")
+    for rom in ROMS:
+        if '"%s"' % rom not in profiles:
+            fail("bm3_profiles.js: %s is not listed after patching" % rom)
+    config = json.loads(read(ROOT / "apps" / APP_ID / "app.json")).get("config") or {}
+    if config.get(FALLBACK_KEY) != ROM:
+        fail("app.json: config.%s is not %s after patching" % (FALLBACK_KEY, ROM))
+    return "three tiers, %d ROMs and %s verified" % (len(ROMS), ROM)
+
+
 def bump_versions():
     """every app: x.y.z -> x.y.(z+1), so this fork's catalog outranks upstream's."""
     bumped = []
@@ -289,6 +313,7 @@ def main():
     print("zh-apps-kit: %d apps bumped" % len(bumped))
     for line in bumped:
         print("  " + line)
+    print("zh-apps-kit: " + verify())
 
 
 if __name__ == "__main__":
