@@ -6,22 +6,26 @@ Run from the repository root, on a tree that is exactly upstream's head:
 
     python3 zh-apps-kit/patch.py
 
-It changes seven things and nothing else:
+It changes eight things and nothing else:
 
 1. kit/localization/credit.zh-CN.json: the fork's credit file (Translation by:
    LEON HAU, corner + settings + comment), copied over upstream's.
 2. apps/live_adjustments/bm3_profiles.js: the ROMs in ROMS added to the
    multimap profile list, each after the last entry of its own series
    (F4C9L8G7B after F4C9L8G*, R4C9H6K5B after R4C9H6K*).
-3. apps/live_adjustments/bm3_protocol.js: identify()'s marker read wrapped in
-   try/catch so a flash-locked DME (NRC 33) falls back to config.bm3RomFallback
-   instead of failing the BM3 tab.
+3. apps/live_adjustments/bm3_protocol.js: identify() reads the marker three
+   ways: the dynamic DID, then 0x23 straight from the marker address (upstream's
+   own fallback), then config.bm3RomFallback. A DME whose flash is read-locked
+   refuses 0x23 as well (NRC 33, or 31), so without the third tier it fails
+   the BM3 tab.
 4. apps/live_adjustments/app.json: config.bm3RomFallback = ROMS[-1] (the unit
    the fallback names by default).
 5. mgu-repo.json: the unit's build gets --language zh-CN, so every app the car
    builds from this branch is Chinese.
 6. kit/tools/test_zh.py: the credit it asserts is the fork's.
-7. every apps/<id>/app.json: version x.y.z -> x.y.(z+1), so this fork's catalog
+7. kit/tools/test_bm3_protocol.js: the bundled-profile count it asserts is the
+   number of ROMs this branch lists, not upstream's.
+8. every apps/<id>/app.json: version x.y.z -> x.y.(z+1), so this fork's catalog
    is always the newest the store sees (js/catalog.js compares only x.y.z).
 
 Every step is idempotent and deterministic. A step whose upstream anchors have
@@ -114,46 +118,48 @@ def rom_list():
 
 
 def protocol_fallback():
-    """bm3_protocol.js: identify()'s marker read falls back instead of throwing."""
+    """bm3_protocol.js: identify() gets a third way to find the ROM.
+
+    Upstream reads the marker through the dynamic DID and, when the DME refuses
+    that, straight from the marker address with 0x23; a refusal there is still a
+    failure. A unit whose flash is read-locked refuses 0x23 as well (NRC 33, or
+    31 for an address outside the readable range), yet its RAM map variable reads
+    and writes without security. So the fork adds the last tier: the ROM named in
+    config.<FALLBACK_KEY>, used only when 0x23 is refused too."""
     path = ROOT / "apps" / APP_ID / "bm3_protocol.js"
     text = read(path)
     if FALLBACK_KEY in text:
-        return "bm3_protocol.js already falls back"
+        return "bm3_protocol.js already falls back to config." + FALLBACK_KEY
     lines = text.splitlines(keepends=True)
-    start = None
-    end = None
+    guard = None
     for i, line in enumerate(lines):
-        if start is None and line.strip() == "const addr = addressBytes(this.config.bm3MarkerAddress);":
-            start = i
-            continue
-        if start is not None and line.strip().startswith("const rom = markerRom(marker, this.profiles);"):
-            end = i
+        if line.strip() == "if (!/^DME rejected (2C|22)/.test(e.message)) throw e;":
+            guard = i
             break
-    if start is None or end is None:
-        fail("bm3_protocol.js: identify()'s marker read moved (no const addr / const rom anchors)")
-    segment = lines[start:end + 1]
-    for line in segment:
-        if line.strip() and not line.startswith("        "):
-            fail("bm3_protocol.js: marker read is not indented as identify()'s body")
-    indented = ["    " + line if line.strip() else line for line in segment]
-    indented[-1] = indented[-1].replace("const rom = markerRom", "rom = markerRom", 1)
+    if guard is None:
+        fail("bm3_protocol.js: identify()'s 0x23 fallback moved (no DME rejected (2C|22) guard)")
+    read_line = lines[guard + 1] if guard + 1 < len(lines) else ""
+    parse_line = lines[guard + 2] if guard + 2 < len(lines) else ""
+    if "0x23" not in read_line or "markerDataRom" not in parse_line:
+        fail("bm3_protocol.js: identify()'s 0x23 read is not right after the refusal guard")
+    outer = " " * (len(lines[guard]) - len(lines[guard].lstrip()))
+    inner = outer + "    "
     replacement = (
-        ["        let rom = null;\n", "        try {\n"]
-        + indented
-        + [
-            "        } catch (e) {\n",
-            "            // Flash read locked (NRC 33): the marker is unavailable, but the\n",
-            "            // RAM map variable still reads and writes without security, so\n",
-            "            // fall back to the ROM this unit is known to run.\n",
-            "            const fallback = this.config.%s;\n" % FALLBACK_KEY,
-            "            if (!fallback || !this.profiles[fallback]) throw e;\n",
-            "            rom = fallback;\n",
-            "        }\n",
-        ]
+        [lines[guard], outer + "try {\n", "    " + read_line, "    " + parse_line,
+         outer + "} catch (refused) {\n",
+         inner + "// 0x23 refused too (NRC 33, or 31 for an address outside the readable\n",
+         inner + "// range): the flash is read-locked, so no marker of any layout can be read.\n",
+         inner + "// The RAM map variable still reads and writes without security, so name\n",
+         inner + "// the ROM this unit is known to run instead of failing the BM3 tab.\n",
+         inner + "if (!/^DME rejected 23/.test(refused.message)) throw refused;\n",
+         inner + "const fallback = this.config.%s;\n" % FALLBACK_KEY,
+         inner + "if (!fallback || !this.profiles[fallback]) throw refused;\n",
+         inner + "rom = fallback;\n",
+         outer + "}\n"]
     )
-    lines[start:end + 1] = replacement
+    lines[guard:guard + 3] = replacement
     write(path, "".join(lines))
-    return "bm3_protocol.js: marker read falls back to config." + FALLBACK_KEY
+    return "bm3_protocol.js: identify() falls back to config.%s after 0x23" % FALLBACK_KEY
 
 
 def app_config():
@@ -225,6 +231,35 @@ def test_expectations():
     return "test_zh.py: credit assertions rewritten from the fork's credit file"
 
 
+def profile_count():
+    """kit/tools/test_bm3_protocol.js: the bundled-profile count matches the list.
+
+    Upstream asserts the profile list has a fixed number of entries; this fork
+    lists more ROMs, so the number is recomputed from the file the assertion is
+    about instead of being left red."""
+    profiles = read(ROOT / "apps" / APP_ID / "bm3_profiles.js")
+    count = 0
+    for block in re.findall(r'"roms"\s*:\s*\[([^\]]*)\]', profiles):
+        # Every quoted entry becomes a profile key: most are nine characters, a few
+        # are six ("011000"), and bm3_profiles.js builds one profile per entry.
+        count += len(re.findall(r'"[0-9A-Z]+"', block))
+    if not count:
+        fail("bm3_profiles.js: no \"roms\" arrays to count")
+    path = ROOT / "kit" / "tools" / "test_bm3_protocol.js"
+    if not path.is_file():
+        return "test_bm3_protocol.js not in this tree"
+    text = read(path)
+    want = "assert.strictEqual(Object.keys(bundled).length, %d);" % count
+    if want in text:
+        return "test_bm3_protocol.js already expects %d layouts" % count
+    replaced, found = re.subn(
+        r"assert\.strictEqual\(Object\.keys\(bundled\)\.length, \d+\);", want, text, count=1)
+    if found == 0:
+        return "test_bm3_protocol.js: no bundled-count assertion found; left alone for review"
+    write(path, replaced)
+    return "test_bm3_protocol.js: bundled count %d layouts" % count
+
+
 def bump_versions():
     """every app: x.y.z -> x.y.(z+1), so this fork's catalog outranks upstream's."""
     bumped = []
@@ -246,7 +281,8 @@ def bump_versions():
 def main():
     if not (ROOT / "kit" / "tools" / "build.py").is_file():
         fail("run this at the repository root (kit/tools/build.py not found)")
-    steps = [credit(), rom_list(), protocol_fallback(), app_config(), repo_language(), test_expectations()]
+    steps = [credit(), rom_list(), protocol_fallback(), app_config(), repo_language(),
+             test_expectations(), profile_count()]
     for step in steps:
         print("zh-apps-kit: " + step)
     bumped = bump_versions()
