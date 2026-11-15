@@ -345,6 +345,79 @@ def profile_count():
     return "test_bm3_protocol.js: bundled count %d layouts" % count
 
 
+def leon_app():
+    """apps/leon_skin: this fork's dashboard skin, injected from zh-apps-kit.
+
+    Upstream's tree is reset every run, so the skin cannot live in apps/ - it
+    would be removed with the reset. Its payload sits in zh-apps-kit/leon_skin/
+    (already built: the flat .js the runtime loads, icon, manifest, the packed
+    hud data as hud.pack, and the label translations build.py needs) and is
+    copied into apps/leon_skin/ here. build.py copies the .js flat, takes the
+    committed hud.pack as it is, so the car builds it like any other app."""
+    src = KIT / "leon_skin"
+    if not (src / "app.json").is_file():
+        fail("zh-apps-kit/leon_skin/app.json is missing: the skin payload is not in this tree")
+    dst = ROOT / "apps" / "leon_skin"
+    copied = 0
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in sorted(src.iterdir()):
+        if item.name == "locale-extra.json":
+            continue
+        if item.is_file():
+            target = dst / item.name
+            if not target.is_file() or target.read_bytes() != item.read_bytes():
+                shutil.copyfile(item, target)
+                copied += 1
+    if not (dst / "hud.pack").is_file():
+        fail("apps/leon_skin/hud.pack is missing after copying the payload")
+    return "apps/leon_skin: %d file(s) written from zh-apps-kit/leon_skin" % copied
+
+
+def leon_locale():
+    """kit/runtime/locales/zh-CN.json: the skin's settings labels, translated.
+
+    build.py localizes every label and option through this dictionary, so a
+    label it does not know stays English (that is how the skin first shipped
+    half translated). The entries are added only when absent: upstream's own
+    translations are never overwritten."""
+    path = ROOT / "kit" / "runtime" / "locales" / "zh-CN.json"
+    if not path.is_file():
+        fail("kit/runtime/locales/zh-CN.json is not in the upstream tree")
+    doc = json.loads(read(path))
+    extra = json.loads(read(KIT / "leon_skin" / "locale-extra.json"))
+    added = [key for key, value in extra.items() if key not in doc]
+    if not added:
+        return "kit/runtime/locales/zh-CN.json already carries the skin's labels"
+    for key in added:
+        doc[key] = extra[key]
+    write(path, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+    return "kit/runtime/locales/zh-CN.json: %d skin label(s) added" % len(added)
+
+
+def repo_credits():
+    """kit/tools/build.py: an app that names its own credit keeps it.
+
+    Upstream writes the project credit into every app's settings (hardcoded).
+    The skin's credit rows are its name and its Chinese description, which is
+    what its manifest carries under credits; every other app has none and keeps
+    upstream's two strings."""
+    path = ROOT / "kit" / "tools" / "build.py"
+    text = read(path)
+    if "zh-apps-kit: an app that names its own credit keeps it" in text:
+        return "build.py already keeps an app's own credit"
+    original = ("        strings[repo_title] = 'iDrive 7 custom apps'\n"
+                "        strings[repo_link] = 'GitHub cauliflowermossgrape · github.com/cauliflowermossgrape/idrive7-apps'\n")
+    if original not in text:
+        fail("build.py: the REPO_CREDITS lines moved; upstream changed them, review needed")
+    replacement = ("        # zh-apps-kit: an app that names its own credit keeps it (the skin);\n"
+                   "        # every other app has no credits and keeps the project's two strings.\n"
+                   "        own = spec.get('credits') or {}\n"
+                   "        strings[repo_title] = own.get('title') or 'iDrive 7 custom apps'\n"
+                   "        strings[repo_link] = own.get('text') or 'GitHub cauliflowermossgrape · github.com/cauliflowermossgrape/idrive7-apps'\n")
+    write(path, text.replace(original, replacement, 1))
+    return "build.py: REPO_CREDITS now prefers the app's own credit"
+
+
 def verify():
     """Re-read what was written: every tier, every ROM and the fallback must be there.
 
@@ -366,7 +439,17 @@ def verify():
     localize = read(ROOT / "kit" / "tools" / "localize.py")
     if VERSION_MARKER not in localize:
         fail("localize.py: package_version() still appends a language suffix; the Store cannot compare that version")
-    return "three tiers, %d ROMs, %s and plain build versions verified" % (len(ROMS), ROM)
+    skin = ROOT / "apps" / "leon_skin"
+    for name in ("app.json", "hud.pack", "icon.png", "app.js"):
+        if not (skin / name).is_file():
+            fail("apps/leon_skin: %s is missing after patching" % name)
+    labels = json.loads(read(ROOT / "kit" / "runtime" / "locales" / "zh-CN.json"))
+    for key in ("Full-screen alerts", "OVERBOOST: boost at", "LEON Skin"):
+        if key not in labels:
+            fail("kit/runtime/locales/zh-CN.json: %r is not translated after patching" % key)
+    if "zh-apps-kit: an app that names its own credit keeps it" not in read(ROOT / "kit" / "tools" / "build.py"):
+        fail("build.py: the app's own credit is not honoured after patching")
+    return "three tiers, %d ROMs, %s, plain build versions and the skin verified" % (len(ROMS), ROM)
 
 
 def version_tuple(text):
@@ -444,7 +527,8 @@ def main():
     if not (ROOT / "kit" / "tools" / "build.py").is_file():
         fail("run this at the repository root (kit/tools/build.py not found)")
     steps = [credit(), rom_list(), protocol_fallback(), app_config(), repo_language(),
-             build_version(), plain_version_assert(), test_expectations(), profile_count()]
+             build_version(), plain_version_assert(), test_expectations(), profile_count(),
+             leon_app(), leon_locale(), repo_credits()]
     for step in steps:
         print("zh-apps-kit: " + step)
     bumped = bump_versions()

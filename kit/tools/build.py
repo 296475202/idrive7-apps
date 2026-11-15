@@ -283,8 +283,11 @@ def build_ui(spec, language='en', hmi='ID7'):
             }]))
         # the project's own credit, last row
         repo_title, repo_link = sid(app, 'REPO_CREDITS_TITLE'), sid(app, 'REPO_CREDITS_LINK')
-        strings[repo_title] = 'iDrive 7 custom apps'
-        strings[repo_link] = 'GitHub cauliflowermossgrape · github.com/cauliflowermossgrape/idrive7-apps'
+        # zh-apps-kit: an app that names its own credit keeps it (the skin);
+        # every other app has no credits and keeps the project's two strings.
+        own = spec.get('credits') or {}
+        strings[repo_title] = own.get('title') or 'iDrive 7 custom apps'
+        strings[repo_link] = own.get('text') or 'GitHub cauliflowermossgrape · github.com/cauliflowermossgrape/idrive7-apps'
         items.append(comp('tworow', 'REPO_CREDITS', rows=[{
             'Text1stRow': {'value': repo_title, 'type': 'StringId'},
             'Text2ndRow': {'value': repo_link, 'type': 'StringId'},
