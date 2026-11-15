@@ -6,7 +6,7 @@ Run from the repository root, on a tree that is exactly upstream's head:
 
     python3 zh-apps-kit/patch.py
 
-It changes eight things and nothing else:
+It changes nine things and nothing else:
 
 1. kit/localization/credit.zh-CN.json: the fork's credit file (Translation by:
    LEON HAU, corner + settings + comment), copied over upstream's.
@@ -27,9 +27,10 @@ It changes eight things and nothing else:
    number of ROMs this branch lists, not upstream's.
 8. every apps/<id>/app.json: version x.y.z -> one patch above whichever is
    newer, upstream's version or the one already published on zh-apps. Version
-   is strictly three integers (the store compares only x.y.z, and the build appends
-   its own -zh.cn.N suffix); a fork-only fix therefore still lands as a new
+   is strictly three integers; a fork-only fix therefore still lands as a new
    number instead of hiding behind upstream's.
+9. kit/tools/localize.py: package_version() keeps the plain x.y.z, without
+   upstream's -<language>.<revision> suffix (see build_version()).
 
 Every step is idempotent and deterministic. A step whose upstream anchors have
 moved stops the run with exit 1 and says which file — that is the review point
@@ -57,6 +58,10 @@ ROM = ROMS[-1]
 ROM_ANCHOR = "F4C9L8G06"
 FALLBACK_KEY = "bm3RomFallback"
 CREDIT = "Translation by: LEON HAU"
+
+# The line build_version() writes into localize.py's package_version(), and that
+# verify() looks for: it marks the tree whose builds keep a plain x.y.z.
+VERSION_MARKER = "# zh-apps-kit: builds keep the plain x.y.z the Store compares."
 
 APP_ID = "live_adjustments"
 
@@ -209,6 +214,71 @@ def repo_language():
     return "mgu-repo.json: build args " + " ".join(want)
 
 
+def build_version():
+    """kit/tools/localize.py: a localised build keeps the plain x.y.z version.
+
+    Upstream's kit appends the language and a revision to the version of every
+    translated build ("0.9.3-zh.cn.5", the revision from locale-revisions.json).
+    The MGU Store compares the version an installed app carries in
+    source/package.json with its catalog entry by splitting it on dots and
+    turning every part into a number (js/catalog.js, compareVersions): the
+    suffix makes a part NaN, the comparison then says the installed build is
+    newer than every catalog entry, and the Store never offers the update —
+    the car stays on the first Chinese build it ever installed. Its build step
+    also insists the finished package is named <id>@<catalog version>.tgz
+    (build.js), which a suffixed version breaks, so even a forced install
+    could not run.
+
+    The fork bumps the version on every run (bump_versions()), so the suffix
+    has nothing left to tell apart: the build keeps the number the catalog
+    names."""
+    path = ROOT / "kit" / "tools" / "localize.py"
+    marker = VERSION_MARKER
+    block = "\n".join(
+        ["def package_version(version, language):",
+         "    " + marker,
+         "    # Upstream appended -<language>.<revision> here. The Store's version",
+         "    # comparison reads x.y.z only (NaN made the installed build look newer),",
+         "    # and its build names the package <id>@<version>.tgz, so the suffix",
+         "    # blocked both the update offer and the install.",
+         "    return version",
+         ""]
+    )
+    text = read(path)
+    if marker in text:
+        return "localize.py already builds the plain x.y.z"
+    pattern = re.compile(r"def package_version\(version, language\):\n(?:    [^\n]*\n)+")
+    replaced, count = pattern.subn(block, text, count=1)
+    if count == 0:
+        fail("localize.py: package_version() not found; upstream changed it, review needed")
+    write(path, replaced)
+    return "localize.py: package_version() keeps x.y.z (no -zh.cn.N suffix)"
+
+
+def plain_version_assert():
+    """kit/tools/test_zh.py: it asserts a build keeps x.y.z, the fork's rule.
+
+    Upstream asserts spec['version'] == original['version'] + '-<lang>.<rev>'
+    because the kit appends the suffix; after build_version() that assertion
+    fails the workflow's sanity step for a deliberate change."""
+    path = ROOT / "kit" / "tools" / "test_zh.py"
+    if not path.is_file():
+        return "test_zh.py not in this tree"
+    text = read(path)
+    want = ("        # zh-apps-kit: the built version keeps the plain x.y.z the Store compares.\n"
+            "        assert spec['version'] == original['version'], (manifest, language, spec['version'])\n")
+    if want in text:
+        return "test_zh.py already asserts the plain x.y.z"
+    pattern = re.compile(
+        r"        suffix = '' if language == 'en'[^\n]*\n"
+        r"        assert spec\['version'\] == original\['version'\] \+ suffix[^\n]*\n")
+    replaced, count = pattern.subn(want, text, count=1)
+    if count == 0:
+        return "test_zh.py: no version-suffix assertion found; left alone for review"
+    write(path, replaced)
+    return "test_zh.py: version assertion expects the plain x.y.z"
+
+
 def test_expectations():
     """kit/tools/test_zh.py: the credit it asserts is the fork's, not upstream's.
 
@@ -293,7 +363,10 @@ def verify():
     config = json.loads(read(ROOT / "apps" / APP_ID / "app.json")).get("config") or {}
     if config.get(FALLBACK_KEY) != ROM:
         fail("app.json: config.%s is not %s after patching" % (FALLBACK_KEY, ROM))
-    return "three tiers, %d ROMs and %s verified" % (len(ROMS), ROM)
+    localize = read(ROOT / "kit" / "tools" / "localize.py")
+    if VERSION_MARKER not in localize:
+        fail("localize.py: package_version() still appends a language suffix; the Store cannot compare that version")
+    return "three tiers, %d ROMs, %s and plain build versions verified" % (len(ROMS), ROM)
 
 
 def version_tuple(text):
@@ -371,7 +444,7 @@ def main():
     if not (ROOT / "kit" / "tools" / "build.py").is_file():
         fail("run this at the repository root (kit/tools/build.py not found)")
     steps = [credit(), rom_list(), protocol_fallback(), app_config(), repo_language(),
-             test_expectations(), profile_count()]
+             build_version(), plain_version_assert(), test_expectations(), profile_count()]
     for step in steps:
         print("zh-apps-kit: " + step)
     bumped = bump_versions()

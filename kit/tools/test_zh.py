@@ -47,8 +47,8 @@ for manifest in sorted((root / 'apps').glob('*/app.json')):
         for a, b in zip(original['settings'], spec['settings']):
             assert a['key'] == b['key'] and a['default'] == b['default']
             assert [o[0] for o in a.get('options', [])] == [o[0] for o in b.get('options', [])]
-        suffix = '' if language == 'en' else '-' + language.lower().replace('-', '.') + '.' + str(revisions[language])
-        assert spec['version'] == original['version'] + suffix, (manifest, language, spec['version'])
+        # zh-apps-kit: the built version keeps the plain x.y.z the Store compares.
+        assert spec['version'] == original['version'], (manifest, language, spec['version'])
         _, ui, strings, _ = build.build_ui(copy.deepcopy(spec), language)
         unicode_resources(ui, strings, language)
         assert dynamic_ids <= set(strings), (manifest, language, 'missing dynamic IDs')
