@@ -316,7 +316,9 @@ class HudApp {
         if (ts && (ts.state === 'waiting' || ts.state === 'parked') && ts.holder) {
             return ts.holder === 'foreign' ? ', waiting: another app has this display' : ', waiting: BMW is using this display';
         }
-        const refused = this.refused ? ', refused ' + this.refused : '';
+        // A refusal is already logged at WARN (client.on('refused')); repeating it here
+        // put the renderer's error text on the settings page's first line, as a debug dump.
+        const refused = '';
         const refs = []; this.widgets.forEach((x) => refs.push(x.ref));
         if (!refs.length) return refused;
         let shown = 0, why = null, whyN = 0;
@@ -696,7 +698,10 @@ class HudApp {
 
     /** "x/y" at every step, uploaded as small rects (not the whole, mostly empty, image). */
     _paintGridLabels(x) {
-        const w = x.w, W = w.w, H = w.h, step = w.step || 100, font = w.font;
+        // A bar/grid layout that names no font still has to draw: fall back to the plain
+        // label atlas instead of asking hud/fonts for "undefined" (which threw a WARN on
+        // every repaint of rngbar/coolbar/bstbar).
+        const w = x.w, W = w.w, H = w.h, step = w.step || 100, font = w.font || 'label';
         const cell = textRaster.loadFont(font).metrics.cellHeight;
         const rects = [], parts = [];
         for (let gy = 0; gy < H; gy += step) {
@@ -723,20 +728,21 @@ class HudApp {
     }
 
     _paintScale(x) {
-        const w = x.w, n = this._barMax(w) / 1000 + 1, red = this.setting('redline');
+        // Same fallback as _paintGridLabels: a layout that names no font still draws.
+        const w = x.w, font = w.font || 'label', n = this._barMax(w) / 1000 + 1, red = this.setting('redline');
         const m = Buffer.alloc(w.w * w.h, 0), hot = Buffer.alloc(w.w * w.h, 0);
         for (let i = 0; i < n; i++) {
             const label = String(i);
-            const lw = textRaster.measure(label, w.font, 0);
+            const lw = textRaster.measure(label, font, 0);
             const cx = i / (n - 1) * w.w;
             const left = Math.round(Math.max(0, Math.min(w.w - lw, cx - lw / 2)));
-            const one = textRaster.mask(w.w, w.h, label, { font: w.font, x: left });
+            const one = textRaster.mask(w.w, w.h, label, { font, x: left });
             const into = w.redFrom && i * 1000 >= red ? hot : m;
             for (let k = 0; k < m.length; k++) if (one[k] > into[k]) into[k] = one[k];
         }
-        const buf = textRaster.tint(m, w.w, w.h, { color: color(this.theme, w.color || 'dim'), font: w.font });
+        const buf = textRaster.tint(m, w.w, w.h, { color: color(this.theme, w.color || 'dim'), font });
         if (w.redFrom) {
-            const hb = textRaster.tint(hot, w.w, w.h, { color: this.theme.hot, font: w.font });
+            const hb = textRaster.tint(hot, w.w, w.h, { color: this.theme.hot, font });
             for (let k = 0; k < hot.length; k++) if (hot[k]) hb.copy(buf, k * 4, k * 4, k * 4 + 4);
         }
         this.client.pixels(x.ref, null, buf);

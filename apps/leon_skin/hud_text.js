@@ -18,6 +18,9 @@ const loadedFonts = new Map();
 const warnedMissing = new Set();
 
 function loadFont(name) {
+    // A layout that forgets to name its font asks for "undefined": draw with the plain
+    // label atlas rather than failing the widget (rngbar/coolbar/bstbar did exactly that).
+    if (!name) name = 'label';
     if (loadedFonts.has(name)) return loadedFonts.get(name);
     const metrics = data.json('fonts/' + name + '.json');
     if (!metrics || !metrics.glyphs || !metrics.alpha) throw new Error('font "' + name + '" is missing from hud/fonts');
