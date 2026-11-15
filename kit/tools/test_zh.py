@@ -17,12 +17,11 @@ expected_hmi_locales = [
 ]
 assert build.LANGS == expected_hmi_locales and len(build.LANGS) == 33
 credit = zh_credit()
-assert credit['corner'] == 'Translation by: 抖音 小白科技杂物社 · BiliBili 小白151 · GitHub JackieZ123430'
-assert credit['settingsTitle'] == 'Translation by: 抖音 小白科技杂物社 / BiliBili 小白151'
-assert credit['settingsLink'] == 'GitHub JackieZ123430 · github.com/JackieZ123430/idrive7-apps-cn'
+assert credit['corner'] == 'Translation by: LEON HAU'
+assert credit['settingsTitle'] == 'Translation by: LEON HAU'
+assert credit['settingsLink'] == 'Translation by: LEON HAU'
 assert credit['comment'] == [
-    'Translation by: 抖音 小白科技杂物社 / BiliBili 小白151 / GitHub JackieZ123430',
-    'https://github.com/JackieZ123430/idrive7-apps-cn',
+    'Translation by: LEON HAU',
 ]
 revisions = json.loads((root / 'kit/tools/locale-revisions.json').read_text(encoding='utf-8'))
 # The translation credit ships in Chinese builds only (build.py adds it from kit/localization/credit.zh-CN.json):

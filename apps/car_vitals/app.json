@@ -2,12 +2,18 @@
   "id": "car_vitals",
   "title": "M Vitals",
   "description": "Live engine, thermal, intake / fuel / ignition, tyre and chassis gauges",
-  "version": "2.27.3",
+  "version": "2.27.6",
   "vendor": "custom",
   "loggingId": "OA93",
   "iconGlyph": "gauge",
-  "mguHmi": ["ID7", "ID8"],
-  "requires": { "idrive7-renderd": "2.1.18", "mgu-inputgate": "1.1.0" },
+  "mguHmi": [
+    "ID7",
+    "ID8"
+  ],
+  "requires": {
+    "idrive7-renderd": "2.1.18",
+    "mgu-inputgate": "1.1.0"
+  },
   "signals": {
     "de.bmw.infotainment.vehicle.CDS": {
       "statusEngineSpeed2": "rs",
@@ -112,8 +118,20 @@
       "label": "Temperature unit",
       "type": "choice",
       "default": "c",
-      "options": [["c", "Celsius"], ["f", "Fahrenheit"]],
-      "aliases": {"C": "c", "F": "f"}
+      "options": [
+        [
+          "c",
+          "Celsius"
+        ],
+        [
+          "f",
+          "Fahrenheit"
+        ]
+      ],
+      "aliases": {
+        "C": "c",
+        "F": "f"
+      }
     },
     {
       "key": "pressUnit",
@@ -141,10 +159,22 @@
       "type": "choice",
       "default": "2.5",
       "options": [
-        ["2.0", "2.0 bar / 30 psi"],
-        ["2.5", "2.5 bar / 36 psi"],
-        ["3.0", "3.0 bar / 44 psi"],
-        ["3.5", "3.5 bar / 50 psi"]
+        [
+          "2.0",
+          "2.0 bar / 30 psi"
+        ],
+        [
+          "2.5",
+          "2.5 bar / 36 psi"
+        ],
+        [
+          "3.0",
+          "3.0 bar / 44 psi"
+        ],
+        [
+          "3.5",
+          "3.5 bar / 50 psi"
+        ]
       ]
     },
     {
@@ -169,9 +199,18 @@
       "type": "choice",
       "default": "auto",
       "options": [
-        ["auto", "Auto (from the car)"],
-        ["diesel", "Diesel"],
-        ["petrol", "Petrol"]
+        [
+          "auto",
+          "Auto (from the car)"
+        ],
+        [
+          "diesel",
+          "Diesel"
+        ],
+        [
+          "petrol",
+          "Petrol"
+        ]
       ]
     },
     {
@@ -180,7 +219,9 @@
       "type": "number",
       "unit": "rpm",
       "default": 0,
-      "labels": {"0": "Auto"},
+      "labels": {
+        "0": "Auto"
+      },
       "reset": 1,
       "steps": [
         0,
@@ -208,7 +249,9 @@
       "type": "number",
       "unit": "rpm",
       "default": 0,
-      "labels": {"0": "Auto"},
+      "labels": {
+        "0": "Auto"
+      },
       "steps": [
         0,
         5000,
@@ -225,7 +268,16 @@
       "type": "number",
       "unit": "kW",
       "unitBy": "powerUnit",
-      "units": { "hp": { "unit": "hp", "mul": 1.34102 }, "ps": { "unit": "PS", "mul": 1.35962 } },
+      "units": {
+        "hp": {
+          "unit": "hp",
+          "mul": 1.34102
+        },
+        "ps": {
+          "unit": "PS",
+          "mul": 1.35962
+        }
+      },
       "default": 215,
       "steps": [
         100,
@@ -268,8 +320,19 @@
       "type": "number",
       "unit": "kgm",
       "default": 100,
-      "steps": [20, 25, 30, 40, 50, 60, 80, 100],
-      "when": {"torqueUnit": "kgm"}
+      "steps": [
+        20,
+        25,
+        30,
+        40,
+        50,
+        60,
+        80,
+        100
+      ],
+      "when": {
+        "torqueUnit": "kgm"
+      }
     },
     {
       "key": "powerUnit",
@@ -333,7 +396,13 @@
       "type": "number",
       "unit": "°C",
       "unitBy": "tempUnit",
-      "units": { "f": { "unit": "°F", "mul": 1.8, "add": 32 } },
+      "units": {
+        "f": {
+          "unit": "°F",
+          "mul": 1.8,
+          "add": 32
+        }
+      },
       "default": 125,
       "steps": [
         110,
@@ -662,7 +731,12 @@
       ],
       "group": "Tiles"
     },
-    {"key": "advanced", "label": "Advanced settings", "type": "bool", "default": false},
+    {
+      "key": "advanced",
+      "label": "Advanced settings",
+      "type": "bool",
+      "default": false
+    },
     {
       "key": "theme",
       "label": "Colour theme",
@@ -687,11 +761,58 @@
         ]
       ]
     },
-    {"key": "speedRate", "label": "Speed display rate", "type": "number", "unit": "fps", "default": 10, "reset": 1, "markDefault": true, "steps": [3, 5, 10, 15, 30, 60], "when": {"advanced": true}},
-    {"key": "layout", "label": "Screen layout", "type": "choice", "default": "full",
-     "options": [["full", "Full screen"], ["standard", "Standard"]]},
-    {"key": "renderer", "label": "Renderer", "type": "choice", "default": "auto",
-     "options": [["auto", "GPU 60 fps (default)"], ["software", "Software"]]},
+    {
+      "key": "speedRate",
+      "label": "Speed display rate",
+      "type": "number",
+      "unit": "fps",
+      "default": 10,
+      "reset": 1,
+      "markDefault": true,
+      "steps": [
+        3,
+        5,
+        10,
+        15,
+        30,
+        60
+      ],
+      "when": {
+        "advanced": true
+      }
+    },
+    {
+      "key": "layout",
+      "label": "Screen layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Full screen"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU 60 fps (default)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    },
     {
       "key": "demo",
       "label": "Demo data",
@@ -787,9 +908,28 @@
     "xdrive": {
       "comment": "xDrive split straight from the transfer case unit (LMV, address 0x19), read on the Chassis page when the car's own split signal has nothing. LMV_MOMENT (22 DB32): actual torque to the front axle, signed, Nm = raw / 4 (bytes 0-1); qualifier bytes 2-3, target torque 4-5 (layout from BMW's LMV_G11 description). Split % = front torque / (engine torque x gear ratio): an estimate (no converter multiplication, no losses).",
       "front": [
-        {"ecu": 25, "did": "DB32", "bytes": 2, "at": 0, "factor": 0.25, "signed": true, "min": -200, "max": 2500, "note": "LMV_MOMENT.ISTMOMENT, actual torque to the front axle"}
+        {
+          "ecu": 25,
+          "did": "DB32",
+          "bytes": 2,
+          "at": 0,
+          "factor": 0.25,
+          "signed": true,
+          "min": -200,
+          "max": 2500,
+          "note": "LMV_MOMENT.ISTMOMENT, actual torque to the front axle"
+        }
       ],
-      "gearRatios": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+      "gearRatios": [
+        5.0,
+        3.2,
+        2.143,
+        1.72,
+        1.313,
+        1.0,
+        0.823,
+        0.64
+      ],
       "gearRatiosNote": "ZF 8HP, 1st..8th"
     },
     "dme": {

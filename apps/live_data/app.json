@@ -2,12 +2,18 @@
   "id": "live_data",
   "title": "Live Data",
   "description": "Read-only live values from the car and its control units, a trip computer with fuel cost, and gauge screens of your own, one of them as the home-screen widget",
-  "version": "1.0.13",
+  "version": "1.0.15",
   "vendor": "custom",
   "loggingId": "OA9D",
   "iconGlyph": "gauge",
-  "mguHmi": ["ID7", "ID8"],
-  "requires": { "idrive7-renderd": "2.1.18", "mgu-inputgate": "1.1.0" },
+  "mguHmi": [
+    "ID7",
+    "ID8"
+  ],
+  "requires": {
+    "idrive7-renderd": "2.1.18",
+    "mgu-inputgate": "1.1.0"
+  },
   "signals": {
     "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
       "_instances": "SystemFunctionsInternalTasuInst1",
@@ -234,7 +240,9 @@
         8,
         12
       ],
-      "when": {"advanced": true}
+      "when": {
+        "advanced": true
+      }
     },
     {
       "key": "trips",
@@ -320,7 +328,12 @@
       "type": "bool",
       "default": false
     },
-    {"key": "advanced", "label": "Advanced settings", "type": "bool", "default": false},
+    {
+      "key": "advanced",
+      "label": "Advanced settings",
+      "type": "bool",
+      "default": false
+    },
     {
       "key": "theme",
       "label": "Colour theme",

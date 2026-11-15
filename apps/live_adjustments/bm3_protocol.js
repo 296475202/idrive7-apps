@@ -105,8 +105,19 @@ class Bm3Protocol {
             // a DME that refuses the dynamic DID (NRC): the marker read straight from its address (0x23).
             // Only a refusal: no answer, or a marker without a known ROM, stays an error.
             if (!/^DME rejected (2C|22)/.test(e.message)) throw e;
-            const direct = await this.request(0x23, [0x14].concat(addr, [MARKER_SIZE]), []);
-            rom = markerDataRom(Buffer.from(direct.slice(1)), this.profiles);
+            try {
+                const direct = await this.request(0x23, [0x14].concat(addr, [MARKER_SIZE]), []);
+                rom = markerDataRom(Buffer.from(direct.slice(1)), this.profiles);
+            } catch (refused) {
+                // 0x23 refused too (NRC 33, or 31 for an address outside the readable
+                // range): the flash is read-locked, so no marker of any layout can be read.
+                // The RAM map variable still reads and writes without security, so name
+                // the ROM this unit is known to run instead of failing the BM3 tab.
+                if (!/^DME rejected 23/.test(refused.message)) throw refused;
+                const fallback = this.config.bm3RomFallback;
+                if (!fallback || !this.profiles[fallback]) throw refused;
+                rom = fallback;
+            }
         }
         const profile = this.profiles[rom];
         if (!profile || !profile.mapSwActAddr || profile.rom !== rom) throw new Error('BM3 profile unavailable');

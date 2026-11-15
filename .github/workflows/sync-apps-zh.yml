@@ -1,0 +1,73 @@
+name: sync upstream and publish zh apps
+
+# The fork's default branch holds only this automation. Every run resets the
+# tree to upstream's main, copies zh-apps-kit/ in from the fork branch that
+# triggered it, applies the patch and force-pushes the result as `zh-apps`.
+#
+# Nothing is built here: BMW's oap-sdk must be extracted from a head unit and
+# must never be committed or shipped in a package, so the published branch is
+# source only — exactly upstream's publishing model. The car pulls the branch,
+# reads mgu-repo.json and builds every app on the unit, in Chinese (the patch
+# puts --language zh-CN into the repo's build args).
+#
+# The car's source:
+#   {"id": "idrive7-apps-zh", "type": "github",
+#    "repo": "296475202/idrive7-apps", "channel": "branch:zh-apps"}
+#
+# Force-push an unchanged tree is skipped, so the car sees a new version only
+# when upstream actually changed: the patch bumps each app one patch above
+# upstream, deterministically.
+
+on:
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-apps-zh
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reset to upstream's main, keep the kit
+        run: |
+          git fetch --depth 1 https://github.com/cauliflowermossgrape/idrive7-apps.git main
+          git checkout -B zh-apps FETCH_HEAD
+          git checkout "${{ github.sha }}" -- zh-apps-kit .github/workflows/sync-apps-zh.yml
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Patch (credit, BM3 fallback, zh-CN build args, version bump)
+        run: python3 zh-apps-kit/patch.py
+
+      - name: Sanity check the Chinese layer
+        run: python3 kit/tools/test_zh.py
+
+      - name: Publish the zh-apps branch
+        run: |
+          set -e
+          upstream="$(git rev-parse --short HEAD)"
+          git config user.name "zh apps bot"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add -A
+          tree="$(git write-tree)"
+          if git fetch --depth 1 origin zh-apps 2>/dev/null; then
+            if [ "$tree" = "$(git rev-parse FETCH_HEAD^{tree})" ]; then
+              echo "zh-apps unchanged for upstream $upstream; nothing pushed"
+              exit 0
+            fi
+          fi
+          git commit -q -m "zh apps: upstream $upstream"
+          git push --force origin zh-apps
+          echo "published zh-apps for upstream $upstream, tree $tree"

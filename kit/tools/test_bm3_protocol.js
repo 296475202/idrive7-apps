@@ -200,7 +200,7 @@ async function markerDetectionChecks() {
     assert.throws(() => addressBytes('not-an-address'), /invalid/);
     assert.throws(() => markerRom([0x62, 0xF3, 1, 0], {}), /marker length/);
     await markerDetectionChecks();
-    assert.strictEqual(Object.keys(bundled).length, 150);
+    assert.strictEqual(Object.keys(bundled).length, 152);
     const relocated = ['F4C9G5705', 'F4C9G5905', 'F4C9G5F05', 'F4C9G5H05',
         'F4C9L8A05', 'F4C9L8C05', 'F4C9L8E05', 'F4C9L8G05', 'F4C9L8J05',
         'F4C9L8N05', 'F4C9L8R06', 'F4C9L8R07', 'F4C9L8Y04', 'F4C9L8Y05'];
