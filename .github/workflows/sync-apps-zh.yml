@@ -13,10 +13,11 @@ name: sync upstream and publish zh apps
 #   {"id": "idrive7-apps-zh", "type": "github",
 #    "repo": "296475202/idrive7-apps", "channel": "branch:zh-apps"}
 #
-# Force-push an unchanged tree is skipped. The patch always raises each app one
-# patch above whichever is newer - upstream's version or the one already on
-# zh-apps - so a fork-only fix still publishes as a new number the car's store
-# will offer, while a run with nothing new stays quiet.
+# Publishing appends one commit on top of the previous zh-apps tip and never
+# force-pushes: the car's MGU STORE pulls this branch, and a rewritten history
+# leaves it stranded on an old version. An unchanged tree is still skipped. The
+# patch raises each app one patch above whichever is newer - upstream's version
+# or the one already on zh-apps - so a fork-only fix also lands as a new number.
 on:
   schedule:
     - cron: '41 3 * * *'
@@ -68,12 +69,23 @@ jobs:
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git add -A
           tree="$(git write-tree)"
+          parent=""
           if git fetch --depth 1 origin zh-apps 2>/dev/null; then
+            parent="$(git rev-parse FETCH_HEAD)"
             if [ "$tree" = "$(git rev-parse FETCH_HEAD^{tree})" ]; then
               echo "zh-apps unchanged for upstream $upstream; nothing pushed"
               exit 0
             fi
           fi
-          git commit -q -m "zh apps: upstream $upstream"
-          git push --force origin zh-apps
-          echo "published zh-apps for upstream $upstream, tree $tree"
+          # Commit on top of the published tip and push without --force. A
+          # force-push rewrites the branch, so a car that pulls it can never
+          # catch up again (that is how a head unit got stranded on an old
+          # version). History here is only a chain of these commits; the tree is
+          # upstream's head plus the patch either way.
+          if [ -n "$parent" ]; then
+            commit="$(git commit-tree "$tree" -p "$parent" -m "zh apps: upstream $upstream")"
+          else
+            commit="$(git commit-tree "$tree" -m "zh apps: upstream $upstream")"
+          fi
+          git push origin "$commit:refs/heads/zh-apps"
+          echo "published zh-apps for upstream $upstream, tree $tree, commit $commit"
