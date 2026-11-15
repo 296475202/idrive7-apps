@@ -385,16 +385,18 @@ class EvaHud extends HudApp {
         if (w.type === 'evaseg') {
             this.client.uniform(ref, 'u_size', [w.w, w.h]);
             this.client.uniform(ref, 'u_segs', [w.segments || 28]);
-            this.client.uniform(ref, 'u_low', rgb01(t.bar.low));
-            this.client.uniform(ref, 'u_mid', rgb01(t.bar.mid));
-            this.client.uniform(ref, 'u_high', rgb01(t.bar.high));
+            // Explicit vec3: the renderer refused this segment ("a uniform needs a name and
+            // 1 type") when the three colour uniforms arrived without their declared width.
+            this.client.uniform(ref, 'u_low', rgb01(t.bar.low), { type: 'vec3' });
+            this.client.uniform(ref, 'u_mid', rgb01(t.bar.mid), { type: 'vec3' });
+            this.client.uniform(ref, 'u_high', rgb01(t.bar.high), { type: 'vec3' });
             this.client.uniform(ref, 'u_midAt', [t.bar.midAt]);
             this.client.uniform(ref, 'u_highAt', [0.85]);
             this.client.uniform(ref, 'u_off', [0.1]);
             this.client.uniform(ref, 'u_gap', [w.gap || 2]);
         } else if (w.type === 'evaframe') {
             this.client.uniform(ref, 'u_size', [w.w, w.h]);
-            this.client.uniform(ref, 'u_color', rgb01(t.fg));
+            this.client.uniform(ref, 'u_color', rgb01(t.fg), { type: 'vec3' });
             this.client.uniform(ref, 'u_lineA', [0.42]);
             this.client.uniform(ref, 'u_cornerA', [0.9]);
             this.client.uniform(ref, 'u_inset', [w.inset || 4]);
@@ -402,11 +404,11 @@ class EvaHud extends HudApp {
             this.client.uniform(ref, 'u_weight', [w.weight || 1]);
         } else if (w.type === 'evasolo') {
             this.client.uniform(ref, 'u_size', [w.w, w.h]);
-            this.client.uniform(ref, 'u_color', rgb01(t.fg));
+            this.client.uniform(ref, 'u_color', rgb01(t.fg), { type: 'vec3' });
             this.client.uniform(ref, 'u_bar', w.bar);
         } else if (w.type === 'evacorners') {
             this.client.uniform(ref, 'u_size', [w.w, w.h]);
-            this.client.uniform(ref, 'u_color', rgb01(t.fg));
+            this.client.uniform(ref, 'u_color', rgb01(t.fg), { type: 'vec3' });
             this.client.uniform(ref, 'u_alpha', [0.75]);
             this.client.uniform(ref, 'u_arm', [w.arm]);
             this.client.uniform(ref, 'u_weight', [w.weight]);
