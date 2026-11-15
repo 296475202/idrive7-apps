@@ -34,9 +34,19 @@ installs is built on the unit, in Chinese, with the BM3 fallback in place.
 5. `mgu-repo.json` — the unit's build gets `--language zh-CN`.
 6. `kit/tools/test_zh.py` — its credit assertions are rewritten from the credit
    file, so the workflow's sanity step stays honest.
-7. Every `apps/<id>/app.json` — `x.y.z` → `x.y.(z+1)`, so this fork's version is
-   always one patch above upstream and the store never sees it as older
+7. Every `apps/<id>/app.json` — `x.y.z` → one patch above whichever is newer,
+   upstream's or the version already published on `zh-apps`, so this fork's
+   version is always ahead and the store never sees it as older
    (`js/catalog.js` compares only the first three parts).
+8. `kit/tools/localize.py` — `package_version()` keeps the plain `x.y.z`
+   instead of upstream's `-zh.cn.N` suffix. The store compares an installed
+   `source/package.json` version number-by-number; a suffix became `NaN`, so
+   the installed build looked newer than every catalog entry and the store
+   stopped offering updates. Its build also names the package
+   `<id>@<catalog version>.tgz`, which the suffix broke. The fork bumps the
+   version itself every run, so nothing was left for the suffix to tell apart.
+9. `kit/tools/test_zh.py` — the version assertion expects the plain `x.y.z`
+   for the same reason.
 
 Every step is idempotent except the version bump, which is deliberately one-shot:
 each run starts from a clean upstream tree, so one run means one bump.

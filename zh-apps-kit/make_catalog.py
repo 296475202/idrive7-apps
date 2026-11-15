@@ -5,7 +5,8 @@ Run at the repository root after `python3 kit/tools/build.py --language zh-CN`:
 
     python3 zh-apps-kit/make_catalog.py --out publish
 
-The build writes dist/<id>@<x.y.z>-zh.cn.N.tgz. A catalog entry must name
+The build writes dist/<id>@<x.y.z>.tgz (the fork keeps the plain version the
+store compares; an upstream build of an older kit wrote @<x.y.z>-zh.cn.N). A catalog entry must name
 exactly `<id>@<x.y.z>.tgz` (js/catalog.js rejects anything else), so each
 built package is copied to that name and its sha256 and size recorded. The
 result is publish/catalog.json plus one .tgz per app, which is what the
@@ -25,7 +26,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-BUILT = "^[A-Za-z0-9_.-]+@[0-9]+\\.[0-9]+\\.[0-9]+-zh\\.cn\\.[0-9]+\\.tgz$"
+BUILT = "^[A-Za-z0-9_.-]+@[0-9]+\\.[0-9]+\\.[0-9]+(?:-zh\\.cn\\.[0-9]+)?\\.tgz$"
 
 
 def fail(message):
