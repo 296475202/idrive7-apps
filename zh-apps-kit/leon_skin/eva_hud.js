@@ -141,13 +141,24 @@ class EvaHud extends HudApp {
     }
 
     _layoutName() {
-        const s = this._screens(), gt3 = this._skin() === 'gt3';
+        const s = this._screens();
+        // dash only: nothing on the windscreen at all; the cluster is the only screen that draws
+        if (s === 'off' || s === 'dash') return 'off';
+        if (s === 'grid') return 'grid';
+        const skin = this._skin();
+        // The LEON look (the PORSCHE slot) has a HUD of its own, in every mode: hud/layouts/leon_hud.json.
+        if (skin === 'porsche') return 'leon_hud';
+        const gt3 = skin === 'gt3';
         if (s === 'hud') return gt3 ? 'gt3' : (HUD_ONLY[this.driveMode] || HUD_ONLY.sport);
-        if (s === 'both') return gt3 ? 'gt3' : 'eva';
-        return s === 'grid' ? 'grid' : 'off';
+        return gt3 ? 'gt3' : 'eva';
     }
 
-    _layoutLabel(name) { return name === 'grid' ? 'Calibration grid' : this._skin() === 'gt3' ? 'GT3' : 'EVA'; }
+    _layoutLabel(name) {
+        if (name === 'grid') return 'Calibration grid';
+        if (name === 'leon_hud' || name === 'porsche') return 'PORSCHE';
+        if (name === 'gt3') return 'GT3';
+        return this._skin() === 'gt3' ? 'GT3' : 'EVA';
+    }
 
     _isEva(name) { return !!name && name !== 'off' && name !== 'grid'; }
 
@@ -381,7 +392,7 @@ class EvaHud extends HudApp {
     /* ---------------- normal layers ---------------- */
 
     _create(w) {
-        if (['evaseg', 'evaframe', 'evagear', 'evacanvas', 'evasolo', 'evacorners', 'evaword', 'evacolon'].indexOf(w.type) < 0) { super._create(w); return; }
+        if (['evaseg', 'evaframe', 'evagear', 'evacanvas', 'evasolo', 'evacorners', 'evaword', 'evacolon', 'leondash'].indexOf(w.type) < 0) { super._create(w); return; }
         const base = { target: this.target, klass: w.class || 'content', z: w.z || 0, x: w.x, y: w.y, w: w.w, h: w.h };
         const image = ['evagear', 'evacanvas', 'evaword', 'evacolon'].indexOf(w.type) >= 0;
         if (w.type === 'evaword') Object.assign(base, { sx: w.sx, sy: w.sy, opacity: 0 });
@@ -425,6 +436,13 @@ class EvaHud extends HudApp {
             x.canvas = this._textCanvas(w.parts);
         } else if (w.type === 'evacolon') {
             this.client.pixels(ref, null, textRaster.drawText(w.w, w.h, ':', { font: w.font, color: color(t, 'fg'), glow: t.glow, x: w.pad, offsetY: w.offsetY }));
+        } else if (w.type === 'leondash') {
+            this.client.uniform(ref, 'u_size', [w.w, w.h]);
+            this.client.uniform(ref, 'u_arc', rgb01(color(t, 'amber')), { type: 'vec3' });
+            this.client.uniform(ref, 'u_track', color(t, 'track').map((v) => v / 255));
+            this.client.uniform(ref, 'u_red', rgb01(color(t, 'alert')), { type: 'vec3' });
+            this.client.uniform(ref, 'u_bar', rgb01(color(t, 'fg')), { type: 'vec3' });
+            this.client.uniform(ref, 'u_barTrack', [1, 1, 1, 0.16]);
         }
         this._update(x, Date.now(), true);
     }
@@ -438,7 +456,70 @@ class EvaHud extends HudApp {
         else if (type === 'evacorners') this._updateCorners(x, force);
         else if (type === 'evaword') this._updateWord(x, now, force);
         else if (type === 'evacolon') this._updateColon(x, now);
+        else if (type === 'leondash') this._updateLeonDash(x, force);
         else if (type !== 'evaframe') super._update(x, now, force);
+    }
+
+    /** One packet of uniforms per change: both sweeps, the five readings and their peak markers.
+     *
+     *  The readings ease toward the car's value (6/s) and each keeps a peak that holds for 1.5 s and
+     *  then falls back at 8 %/s. On a parked car the coolant sits at 92 all afternoon, so without
+     *  this the column is a dead picture; with it every change reads as movement, and the peak shows
+     *  where the value went. Nothing here invents a reading: the bar only ever moves toward data.
+     */
+    _updateLeonDash(x, force) {
+        const now = Date.now();
+        const d = this.car.data();
+        const q = (v) => Math.max(0, Math.min(1, Math.round(v * 200) / 200));
+        const sp = q(isNum(d.speed) ? d.speed / 300 : 0);
+        const rpm = q(isNum(d.rpm) ? d.rpm / 8000 : 0);
+        const boost = this._boost(), burn = this._burn();
+        const target = [
+            isNum(d.coolant) ? d.coolant / 140 : 0,
+            isNum(d.oil) ? d.oil / 140 : 0,
+            isNum(boost) ? boost / 2 : 0,
+            isNum(d.torque) ? d.torque / 600 : 0,
+            isNum(burn) ? burn / 20 : 0,
+        ].map(q);
+
+        if (!x.bars) {
+            x.bars = target.slice();
+            x.peaks = target.slice();
+            x.peakAt = target.map(() => now);
+            x.barsAt = now;
+            x.lastKey = null;
+            x.lastSend = 0;
+        }
+        const dt = Math.min(0.4, Math.max(0, (now - x.barsAt) / 1000));
+        x.barsAt = now;
+        const ease = 1 - Math.exp(-dt * 6);
+        let moved = false;
+        for (let i = 0; i < target.length; i++) {
+            const before = x.bars[i];
+            x.bars[i] += (target[i] - x.bars[i]) * ease;
+            if (Math.abs(x.bars[i] - before) > 0.0015) moved = true;
+            if (target[i] >= x.peaks[i]) {
+                if (target[i] > x.peaks[i] + 0.002) moved = true;
+                x.peaks[i] = target[i];
+                x.peakAt[i] = now;
+            } else if (now - x.peakAt[i] > 1500) {
+                const fall = Math.max(target[i], x.peaks[i] - dt * 0.08);
+                if (fall < x.peaks[i] - 0.0015) moved = true;
+                x.peaks[i] = fall;
+            }
+        }
+        const key = sp + '|' + rpm + '|' + target.join('|');
+        const settled = !moved && key === x.lastKey;
+        if (!force && settled && now - x.lastSend < 500) return;
+        if (!force && now - x.lastSend < 80) return;      // 12 Hz at most: one uniform packet
+        x.lastKey = key;
+        x.lastSend = now;
+        this.client.uniform(x.ref, 'u_speed', [sp]);
+        this.client.uniform(x.ref, 'u_rpm', [rpm]);
+        for (let i = 0; i < 5; i++) {
+            this.client.uniform(x.ref, 'u_b' + i, [Math.round(x.bars[i] * 400) / 400]);
+            this.client.uniform(x.ref, 'u_p' + i, [Math.round(x.peaks[i] * 200) / 200]);
+        }
     }
 
     _updateSolo(x, force) {

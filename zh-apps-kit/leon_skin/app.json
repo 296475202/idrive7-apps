@@ -92,7 +92,7 @@
       "key": "dashSkin",
       "label": "皮肤（HUD 与仪表盘）",
       "type": "choice",
-      "default": "gt3",
+      "default": "porsche",
       "options": [["eva", "EVA 原版"], ["gt3", "GT3"], ["porsche", "Porsche"], ["test", "TEST（开孔校准）"]]
     },
     {

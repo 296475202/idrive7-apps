@@ -16,6 +16,7 @@
  * text and the alert's end brings them back. The car found this; the HUD's images are small enough to keep.
  */
 const EvaHud = require('./eva_hud');
+const textRaster = require('./hud_text');
 
 const POPUP_SLOT = 0x202;
 const TEXT_MS = 250;     // its text rectangles are about four times the HUD's, and share one upload budget with it
@@ -74,6 +75,28 @@ class EvaDash extends EvaHud {
     _rebuildInner() {
         this.freedWidgets = [];
         super._rebuildInner();
+    }
+
+    /* The three-dial LEON face spends the client's whole eight-layer budget (4 fills, 2 arcs, 2 canvases).
+       On those layouts this screen's alert keeps two layers, the text and the coloured title: the white
+       title twin is dropped and the title flashes by opacity instead. Layouts with room keep all three. */
+    _makeAlertLayers() {
+        super._makeAlertLayers();
+        if (this.widgets.size < 7) return;
+        this.client.drop(this.alertLayers.white);
+        this.alertLayers.white = this.alertLayers.colour;   // hide, show and flash now hit the coloured title
+    }
+
+    _paintTitle(key) {
+        if (this.alertLayers.white !== this.alertLayers.colour) { super._paintTitle(key); return; }
+        const t = this.alertLayout.title, rows = this.alertLayout.rows[key];
+        const m = Buffer.alloc(t.w * t.h, 0);
+        rows.forEach((r) => {
+            const one = textRaster.mask(t.w, t.h, r.text, { font: r.font, x: t.pad, offsetY: r.y });
+            for (let i = 0; i < m.length; i++) if (one[i] > m[i]) m[i] = one[i];
+        });
+        const font = rows[rows.length - 1].font;
+        this.client.pixels(this.alertLayers.colour, null, textRaster.tint(m, t.w, t.h, { color: this.theme.alert, glow: 0.8, font }));
     }
 
     /** The drive mode arrives on the HUD's signals. */

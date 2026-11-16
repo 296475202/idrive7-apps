@@ -420,4 +420,145 @@ void main() {
 }
 `;
 
-module.exports = { evacorners: EVACORNERS, evasolo: EVASOLO, shiftbar: SHIFTBAR, arc: ARC, revbar: REVBAR, lights: LIGHTS, fill: FILL, box: BOX, grid: GRID, evaseg: EVASEG, evaframe: EVAFRAME };
+/* LEON's three-dial face in ONE layer: the speed and rpm sweeps, the rpm red zone, and the five
+ * bars of the right-hand dial. cluster-render allows a client eight layers, so the whole moving
+ * part of the design has to share one; the dials' rings, ticks, numbers and icons are canvas logos.
+ *   u_speed, u_rpm   0..1 of the 300 km/h and 8000 rpm sweeps (start 225 deg, clockwise 270 deg)
+ *   u_b0..u_b4       0..1 of each bar, already normalised by eva_hud.js (temps, boost, torque, burn)
+ *   u_arc, u_red, u_bar   lit sweep / red zone / bar fill colours (rgb 0..1)
+ *   u_track, u_barTrack   unlit sweep and bar colours (rgba, straight alpha)
+ * The dial centres and the bar rows below must match dash_porsche.json and the baked face logos. */
+const LEONDASH = `precision mediump float;
+varying vec2 v_uv;
+uniform vec2 u_size;
+uniform float u_speed;
+uniform float u_rpm;
+uniform float u_b0;
+uniform float u_b1;
+uniform float u_b2;
+uniform float u_b3;
+uniform float u_b4;
+uniform float u_p0;
+uniform float u_p1;
+uniform float u_p2;
+uniform float u_p3;
+uniform float u_p4;
+uniform vec3 u_arc;
+uniform vec4 u_track;
+uniform vec3 u_red;
+uniform vec3 u_bar;
+uniform vec4 u_barTrack;
+
+const float PI = 3.14159265359;
+const float SWEEP = 1.5 * PI;
+const float START = 1.25 * PI;
+
+float arcDist(vec2 p, float r, float a0, float s) {
+    float a = atan(p.x, -p.y);                       // clockwise from 12 o'clock, y down
+    float rel = mod(a - a0 + 4.0 * PI, 2.0 * PI);
+    if (rel <= s) return abs(length(p) - r);
+    vec2 e0 = r * vec2(sin(a0), -cos(a0));
+    vec2 e1 = r * vec2(sin(a0 + s), -cos(a0 + s));
+    return min(length(p - e0), length(p - e1));
+}
+
+vec4 over(vec4 dst, vec4 src) {
+    dst.rgb = mix(dst.rgb, src.rgb, src.a);
+    dst.a = max(dst.a, src.a);
+    return dst;
+}
+
+void dial(vec2 p, vec2 c, float r, float value, float width, inout vec4 col) {
+    vec2 q = p - c;
+    float hw = width * 0.5;
+    float cT = clamp(0.5 - (arcDist(q, r, START, SWEEP) - hw), 0.0, 1.0);
+    float sweep = clamp(value, 0.0, 1.0) * SWEEP;
+    float cL = sweep > 0.001 ? clamp(0.5 - (arcDist(q, r, START, sweep) - hw), 0.0, 1.0) : 0.0;
+    col = over(col, vec4(u_track.rgb, u_track.a * cT));
+    col = over(col, vec4(u_arc, cL));
+}
+
+/* The ladder's long ticks, in the accent colour, drawn after the red zone so amber sits on red as
+ * it does in the reference. Six and eight of them over a 45 degree step: coarse enough for mediump. */
+float majorTick(vec2 q, float r0, float r1, float count, float halfW) {
+    float a = mod(atan(q.x, -q.y) - START + 4.0 * PI, 2.0 * PI);
+    if (a > SWEEP) return 0.0;
+    float rr = length(q);
+    float stepA = SWEEP / count;
+    float d = abs(a - floor(a / stepA + 0.5) * stepA);
+    float ang = clamp(0.5 - (d * rr - halfW), 0.0, 1.0);
+    float rad = clamp(0.5 + rr - r0, 0.0, 1.0) * clamp(0.5 + r1 - rr, 0.0, 1.0);
+    return ang * rad;
+}
+
+void needle(vec2 p, vec2 c, float value, float len, inout vec4 col) {
+    float a = START + SWEEP * clamp(value, 0.0, 1.0);
+    vec2 dir = vec2(sin(a), -cos(a));
+    vec2 q = p - c;
+    float t = clamp(dot(q, dir), 0.0, len);
+    float cov = clamp(0.5 - (length(q - dir * t) - 2.2), 0.0, 1.0);
+    col = over(col, vec4(u_arc, cov));
+    float pivot = clamp(0.5 - (length(q) - 15.0), 0.0, 1.0);
+    col = over(col, vec4(0.10, 0.10, 0.11, pivot));
+    float cap = clamp(0.5 - (length(q) - 7.0), 0.0, 1.0);
+    col = over(col, vec4(0.55, 0.55, 0.57, cap));
+}
+
+void main() {
+    vec2 p = v_uv * u_size;
+    vec4 col = vec4(0.0);
+
+    // The sweeps run INSIDE the tick ladders (speed 238, tacho 250). The ladders are baked into the
+    // face at 220..234 and 268..278, so an opaque amber sweep can never swallow the scale again.
+    dial(p, vec2(275.0, 300.0), 232.0, u_speed, 7.0, col);
+    dial(p, vec2(846.0, 300.0), 268.0, u_rpm, 7.0, col);
+
+    // Red zone, 7000..8000 rpm: the whole ring stack turns red, inner rings and the tick band alike,
+    // out to the bezel's inner edge. Over it sits nothing white: the ladder is baked, so red wins.
+    vec2 qm = p - vec2(846.0, 300.0);
+    float rr = length(qm);
+    float a = mod(atan(qm.x, -qm.y) - START + 4.0 * PI, 2.0 * PI);
+    float inRed = step(SWEEP * 0.875, a) * step(a, SWEEP);
+    if (inRed > 0.5 && rr > 244.0 && rr < 294.0) {
+        col = over(col, vec4(u_red, 0.92));
+    }
+
+    float mt = majorTick(p - vec2(275.0, 300.0), 236.0, 252.0, 6.0, 2.6)
+             + majorTick(p - vec2(846.0, 300.0), 276.0, 292.0, 8.0, 2.8);
+    col = over(col, vec4(u_arc, clamp(mt, 0.0, 1.0)));
+
+    needle(p, vec2(275.0, 300.0), u_speed, 218.0, col);
+    needle(p, vec2(846.0, 300.0), u_rpm, 243.0, col);
+
+    // The five readings: a 190 px track each, lit to the reading, with the peak held for a moment and
+    // then allowed to fall back. That is the only motion here that carries data. The rows are centred
+    // on the dial so the lowest one clears the bezel.
+    for (int i = 0; i < 5; i++) {
+        float yc = 208.0 + float(i) * 46.0;
+        float v = i == 0 ? u_b0 : i == 1 ? u_b1 : i == 2 ? u_b2 : i == 3 ? u_b3 : u_b4;
+        float k = i == 0 ? u_p0 : i == 1 ? u_p1 : i == 2 ? u_p2 : i == 3 ? u_p3 : u_p4;
+        v = clamp(v, 0.0, 1.0);
+        k = clamp(k, 0.0, 1.0);
+        float inY = clamp(0.5 - (abs(p.y - yc) - 6.0), 0.0, 1.0);
+        float inX = clamp(0.5 - (1256.0 - p.x), 0.0, 1.0) * clamp(0.5 - (p.x - 1446.0), 0.0, 1.0);
+        float inside = inX * inY;
+        if (inside > 0.0) {
+            float isFill = step(p.x, 1256.0 + 190.0 * v);
+            col = isFill > 0.5 ? over(col, vec4(u_bar, inside))
+                               : over(col, vec4(u_barTrack.rgb, u_barTrack.a * inside));
+            if (i < 2) {                             // the two temperature bars keep their end marks
+                col = over(col, vec4(0.45, 0.85, 1.0, step(p.x, 1259.0) * inside));
+                col = over(col, vec4(u_red, step(1443.0, p.x) * inside));
+            }
+            float mark = clamp(0.5 - (abs(p.x - (1256.0 + 190.0 * k)) - 1.3), 0.0, 1.0);
+            col = over(col, vec4(0.95, 0.95, 0.97, 0.7 * mark * inside));
+        }
+    }
+    gl_FragColor = col;
+}
+`;
+
+
+
+
+module.exports = { evacorners: EVACORNERS, evasolo: EVASOLO, shiftbar: SHIFTBAR, arc: ARC, revbar: REVBAR, lights: LIGHTS, fill: FILL, box: BOX, grid: GRID, evaseg: EVASEG, evaframe: EVAFRAME, leondash: LEONDASH };
