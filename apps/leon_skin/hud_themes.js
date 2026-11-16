@@ -72,6 +72,19 @@ const THEMES = {
         rev: { from: [120, 205, 255], to: [120, 205, 255] },
         rule: [120, 205, 255, 90], black: [0, 0, 0, 255], amber: [255, 176, 0, 255], white: [255, 255, 255, 255], live: [255, 255, 255, 215], alert: [255, 17, 0, 255],
     },
+    // LEON: no colour at all. White type on black, grey for everything secondary, and red only where the car
+    // itself would show red (past the shift point). Cluster roles as in gt3; the HUD roles as in eva.
+    leon: {
+        name: 'LEON',
+        fg: [246, 246, 246, 255], dim: [132, 134, 138, 255], track: [255, 255, 255, 54], arc: [246, 246, 246, 255],
+        glow: 0, stripe: false,
+        bar: { low: [246, 246, 246], mid: [246, 246, 246], high: [235, 66, 58], midAt: 'shift' },
+        rev: { from: [246, 246, 246], to: [246, 246, 246] },
+        bg: [0, 0, 0, 255], panel: [6, 6, 8, 255], line: [104, 106, 110, 255], head: [212, 214, 218, 255],
+        ink: [10, 10, 10, 255], accent: [246, 246, 246, 255], well: [16, 16, 18, 255],
+        rule: [255, 255, 255, 76], black: [0, 0, 0, 255], amber: [255, 176, 0, 255], white: [255, 255, 255, 255],
+        live: [255, 255, 255, 215], alert: [235, 66, 58, 255],
+    },
 };
 // every theme: the shift-point red, used by "hot" (the gear and SHIFT at the shift point, the rev bar past it)
 Object.keys(THEMES).forEach((k) => { THEMES[k].hot = [255, 42, 42, 255]; });

@@ -32,6 +32,7 @@ const TYPES = {
     evacorners: ['lowerLeft'],
     evaword: ['font'],
     evacolon: ['font'],
+    leondash: [],
 };
 const CLASSES = ['ambient', 'content', 'overlay', 'alert'];
 
