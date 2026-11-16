@@ -134,14 +134,20 @@ class EvaHud extends HudApp {
 
     _followsDriveMode() { return this._screens() === 'hud'; }
 
+    /** The chosen look. It picks the HUD as well: GT3 is a HUD layout of its own (hud/layouts/gt3.json). */
+    _skin() {
+        const s = this.setting('dashSkin') || this.setting('skin');
+        return (s === 'gt3' || s === 'porsche' || s === 'test') ? s : 'eva';
+    }
+
     _layoutName() {
-        const s = this._screens();
-        if (s === 'hud') return HUD_ONLY[this.driveMode] || HUD_ONLY.sport;
-        if (s === 'both') return 'eva';
+        const s = this._screens(), gt3 = this._skin() === 'gt3';
+        if (s === 'hud') return gt3 ? 'gt3' : (HUD_ONLY[this.driveMode] || HUD_ONLY.sport);
+        if (s === 'both') return gt3 ? 'gt3' : 'eva';
         return s === 'grid' ? 'grid' : 'off';
     }
 
-    _layoutLabel(name) { return name === 'grid' ? 'Calibration grid' : 'EVA'; }
+    _layoutLabel(name) { return name === 'grid' ? 'Calibration grid' : this._skin() === 'gt3' ? 'GT3' : 'EVA'; }
 
     _isEva(name) { return !!name && name !== 'off' && name !== 'grid'; }
 
@@ -150,8 +156,10 @@ class EvaHud extends HudApp {
 
     _liveSetting(key) {
         if (key.indexOf('limit') === 0) this.alerts.setThresholds(this._limits());
-        if (key === 'dashSkin' && this.dash) {
-            this.dash._rebuild();
+        if (key === 'dashSkin' || key === 'skin') {
+            // The look picks both screens: the cluster swaps its file, the HUD swaps its layout.
+            if (this.dash) this.dash._rebuild();
+            if (this._layoutName() !== this.activeName) this._rebuild();
         }
         if (key === 'dismissAlert' && this.ctx.settings.get('dismissAlert') === true) {
             this.alerts.dismiss();

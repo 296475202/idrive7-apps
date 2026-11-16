@@ -2,7 +2,7 @@
   "id": "leon_skin",
   "title": "LEON Skin",
   "description": "LEON 自定义仪表盘：GT3 / Porsche / TEST 皮肤",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "vendor": "custom",
   "loggingId": "LEON",
   "iconGlyph": "LS",
@@ -103,7 +103,7 @@
     },
     {
       "key": "dashSkin",
-      "label": "仪表盘皮肤",
+      "label": "皮肤（HUD 与仪表盘）",
       "type": "choice",
       "default": "gt3",
       "options": [
