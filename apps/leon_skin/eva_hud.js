@@ -471,8 +471,11 @@ class EvaHud extends HudApp {
         const now = Date.now();
         const d = this.car.data();
         const q = (v) => Math.max(0, Math.min(1, Math.round(v * 200) / 200));
-        const sp = q(isNum(d.speed) ? d.speed / 300 : 0);
-        const rpm = q(isNum(d.rpm) ? d.rpm / 8000 : 0);
+        // The needles get a finer step than the bars: 300 km/h over 600 steps is 0.5 km/h a step and
+        // 8000 rpm is 13 rpm, so a needle never sits on a stair. The bars keep 200: they ease anyway.
+        const qn = (v) => Math.max(0, Math.min(1, Math.round(v * 600) / 600));
+        const sp = qn(isNum(d.speed) ? d.speed / 300 : 0);
+        const rpm = qn(isNum(d.rpm) ? d.rpm / 8000 : 0);
         const boost = this._boost(), burn = this._burn();
         const target = [
             isNum(d.coolant) ? d.coolant / 140 : 0,
@@ -489,6 +492,8 @@ class EvaHud extends HudApp {
             x.barsAt = now;
             x.lastKey = null;
             x.lastSend = 0;
+            x.lastSp = null;
+            x.lastRpm = null;
         }
         const dt = Math.min(0.4, Math.max(0, (now - x.barsAt) / 1000));
         x.barsAt = now;
@@ -511,11 +516,20 @@ class EvaHud extends HudApp {
         const key = sp + '|' + rpm + '|' + target.join('|');
         const settled = !moved && key === x.lastKey;
         if (!force && settled && now - x.lastSend < 500) return;
-        if (!force && now - x.lastSend < 80) return;      // 12 Hz at most: one uniform packet
+        // The needles ride the 20 Hz tick; the bars keep their 12 Hz packet. A gear change is two or
+        // three ticks long, so at the packet rate the tacho arrived after the engine had already
+        // settled into the next gear.
+        const needle = force || sp !== x.lastSp || rpm !== x.lastRpm;
+        const packet = force || now - x.lastSend >= 80;
+        if (!needle && !packet) return;
+        if (needle) {
+            x.lastSp = sp; x.lastRpm = rpm;
+            this.client.uniform(x.ref, 'u_speed', [sp]);
+            this.client.uniform(x.ref, 'u_rpm', [rpm]);
+        }
+        if (!packet) return;
         x.lastKey = key;
         x.lastSend = now;
-        this.client.uniform(x.ref, 'u_speed', [sp]);
-        this.client.uniform(x.ref, 'u_rpm', [rpm]);
         for (let i = 0; i < 5; i++) {
             this.client.uniform(x.ref, 'u_b' + i, [Math.round(x.bars[i] * 400) / 400]);
             this.client.uniform(x.ref, 'u_p' + i, [Math.round(x.peaks[i] * 200) / 200]);
