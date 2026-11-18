@@ -32,6 +32,7 @@ const PAUSE_MS = 10000, FAILS = 4, RELEASE_TRIES = 3;
 const ALL = 0;                 // NAD 0: every light of the bus
 const AGAIN_MS = 700;          // a still colour's (or a give-back's) writes once more, this long after the last of them
 const HOLD_WAIT_MS = 3000;     // hold(): the longest it waits for a write (or read-back) of ours under way
+const BUSY_TRIES = 6, BUSY_MS = 400;   // a read answered "busy": asked again up to 6 times, 0.4 s, 0.8 s, ... apart
 
 const echo = (sid, did) => (u) => (u[0] === sid + 0x40 && u[1] === did[0] && u[2] === did[1]) || (u[0] === 0x7f && u[1] === sid);
 const same = (a, b) => !!a && !!b && Math.abs(a.bright - b.bright) < 2 && a.rgb.every((x, i) => Math.abs(x - b.rgb[i]) < 3);
@@ -40,6 +41,7 @@ class Lights extends EventEmitter {
     constructor(o) {
         super();
         this.diag = o.diag; this.log = o.log; this.now = o.now || Date.now; this.checkMs = o.checkMs;
+        this.sleep = o.sleep || ((ms) => new Promise((res) => setTimeout(res, ms)));
         const ok = (l) => l && typeof l === 'object' && (l.bus === 0 || l.bus === 1) && typeof l.nad === 'number' && typeof l.name === 'string';
         this.lights = Array.isArray(o.known) && o.known.every(ok) ? o.known.map((l) => Object.assign({}, l)) : [];
         this.state = this.lights.length ? 'car' : 'finding';
@@ -56,6 +58,7 @@ class Lights extends EventEmitter {
         this._fails = 0; this._pauseTill = 0; this._frame = null; this._frames = [];
         this.writes = 0; this._times = [];
         this._holds = new Set(); this._idle = [];
+        this._cmds = [];               // one-off writes (command()), sent between the lights' writes
     }
 
     get rate() { const t = this.now(); this._times = this._times.filter((x) => t - x < 3000); return this._times.length / 3; }
@@ -70,10 +73,24 @@ class Lights extends EventEmitter {
         for (let bus = 0; bus < BUSES.length; bus++) {
             const did = BUSES[bus].read;
             let reply = null;
-            try { reply = await this.diag.physical(BDC, 0x22, did, 15000, echo(0x22, did), { pendingTimeoutMs: 15000 }); } catch (e) { this.error = String(e && e.message || e); }
+            // "busy, ask again" (7F 22 21: a G21's body module while it drives the lights itself): asked again, a
+            // little later each time, rather than taken as a no
+            let pending = 0;
+            const t0 = this.now();
+            for (let tries = 0; ; tries++) {
+                reply = null;
+                try { reply = await this.diag.physical(BDC, 0x22, did, 15000, echo(0x22, did), { pendingTimeoutMs: 15000, onPending: () => { pending++; } }); } catch (e) { this.error = String(e && e.message || e); }
+                if (!(reply && reply[0] === 0x7f && reply[2] === 0x21) || tries >= BUSY_TRIES) break;
+                await this.sleep(BUSY_MS * (tries + 1));
+            }
             const got = reply ? parseStatus(bus, reply) : null;
             if (got) found.push.apply(found, got);
             else if (reply) this.log.info('lights: bus ' + (bus + 1) + ' refused (' + reply.map((x) => x.toString(16)).join(' ') + ')');
+            else {
+                // silent, or "still working" (7F 22 78) until the wait ran out: which one says what the body module does
+                const how = pending ? pending + ' x "still working" (78), then nothing' : 'nothing at all';
+                this.log.info('lights: bus ' + (bus + 1) + ' no answer after ' + Math.round((this.now() - t0) / 1000) + ' s: ' + how + (this.error ? ' (' + this.error + ')' : ''));
+            }
         }
         if (!found.length && had.length) {
             this.log.warn('lights: no answer' + (this.error ? ': ' + this.error : '') + ', the ' + had.length + ' known kept');
@@ -162,8 +179,16 @@ class Lights extends EventEmitter {
     }
 
     dim(f) { if (f !== this._dim) { this._dim = f; this._frame = null; this._kick(); } }
+    /**
+     * A one-off write to the body module (2E <data>), sent in turn with the lights' writes (the gateway takes one at a
+     * time) -> its reply, or null (no answer, or the lights not writing: none found, held, stopped).
+     */
+    command(data) {
+        if (this._stopped || this._holds.size || !this.lights.length) return Promise.resolve(null);
+        return new Promise((res) => { this._cmds.push({ data, res }); this._kick(); });
+    }
 
-    stop() { this._stopped = true; clearTimeout(this._timer); clearTimeout(this._onceTimer); }
+    stop() { this._stopped = true; clearTimeout(this._timer); clearTimeout(this._onceTimer); this._cmds.splice(0).forEach((c) => c.res(null)); }
 
     /** Every bus with a light of ours on it given back (one write each), then once more. */
     _giveBack() {
@@ -270,6 +295,13 @@ class Lights extends EventEmitter {
                 if (this._stopped || this._holds.size) return;
                 const wait = this._pauseTill - this.now();
                 if (wait > 0) { this._timer = setTimeout(() => this._kick(), wait); return; }
+                if (this._cmds.length) {
+                    const c = this._cmds.shift();
+                    let r = null;
+                    try { r = await this.diag.physical(BDC, 0x2e, c.data, 1500, echo(0x2e, c.data), { retryBaseMs: 20, maxRetries: 10 }); } catch (e) { r = null; }
+                    c.res(r);
+                    continue;
+                }
                 if (this._checkAt && this.now() >= this._checkAt && !this._release.length) { this._checkAt = 0; this._again(); continue; }
                 const w = this._next();
                 if (!w) {

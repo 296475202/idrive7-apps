@@ -144,6 +144,7 @@ async function background(bg) {
         if (key === 'nightDim') control.night(control._night);
         if (key === 'follow') control.apply();
         if (key === 'turnGlow' || key === 'doorRed' || key === 'hazardRed' || key === 'drive') control.signals();
+        if (key === 'doorCar') control.carDoorSetting();
     });
     const others = new Others({ log }).start();
     // IterioDev's Comfort tool writes the same lights: while it runs, ours stand aside (no writes, so the two don't fight
@@ -172,7 +173,7 @@ async function background(bg) {
     const findStrobe = () => { if (settings.get('strobe') === true && !strobe.kind) strobe.find().catch((e) => log.warn('strobe: ' + e)); };
     findStrobe();
     // the flasher lever (lever.js): a short pull while parked (also while driving with strobeLeverDriving, for private
-    // property) starts the strobe as the Strobe page has it, while its Lever start is on (off until switched on); the
+    // property) starts the strobe as the Strobe page has it, while its Lever start is on (off until switched on), and another pull while it flashes stops it; the
     // light status read only from then on
     const lever = new Lever();
     let leverWatch = null;
@@ -182,6 +183,13 @@ async function background(bg) {
             statusLightStatus: (v) => {
                 const t = Date.now();
                 if (!lever.beam(beamOf(v && v.statusMainBeam_headlightFlasher), t)) return;
+                // a pull while the strobe flashes stops it (however it was started; stopping needs no checks)
+                if (strobe.running === 'strobe') {
+                    lever.cool(t);
+                    log.info('strobe: stopped with the flasher lever');
+                    strobe.stop();
+                    return;
+                }
                 // (while driving only with its setting, for private property)
                 const parkedOk = parked.moving() === false || settings.get('strobeLeverDriving') === true;
                 if (settings.get('strobeLever') !== true || !strobe.kind || strobe.running || gate('strobe') !== null || !parkedOk) return;
