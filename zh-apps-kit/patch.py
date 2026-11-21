@@ -422,45 +422,64 @@ def repo_credits():
 # upstream's English: the Store's i18n.text() shows texts[<language>] when the
 # car's HMI language has one, so a zh-CN entry here is what makes the row
 # Chinese, and an English user still reads the upstream title.
-ZH_TITLES = {
-    "ambient_config": ("氛围灯配置", "车内氛围灯颜色与模式"),
-    "brake_test": ("刹车测试", "制动距离与减速 G 值"),
-    "car_vitals": ("车况监测", "水温、油温、油压与蓄电池电压"),
-    "doom": ("毁灭战士", "经典 FPS，车机上玩"),
-    "draggy": ("加速计时", "0-100、弹射起步与圈速计时"),
-    "dtc_scanner": ("故障码扫描", "读取与清除 DTC"),
-    "dyno": ("虚拟马力机", "按加速数据推算轮上功率"),
-    "edrive": ("电驱数据", "电机与电池实时数据"),
-    "gforce": ("G 值仪表", "纵向与横向加速度"),
-    "live_adjustments": ("实时调校", "BM3 配置与刷写状态"),
-    "live_data": ("实时数据", "发动机参数实时曲线"),
-    "redline": ("换挡提示", "接近红线时提醒"),
-    "service": ("保养助手", "保养项目与里程提醒"),
-    "warmup": ("暖机助手", "冷车暖机与限转提醒"),
-    "zf8hp": ("8HP 变速箱", "ZF 8HP 换挡与油温"),
-    "leon_skin": ("LEON 仪表皮肤", "GT3 / Porsche / TEST 三套仪表盘"),
+#
+# The name itself is read from kit/runtime/locales/zh-CN.json, the dictionary the
+# build localizes every app's own title with: the Store row then reads exactly
+# what the app calls itself once installed ("Transmission Config" -> 变速箱配置).
+# The second string is the description, which the dictionary does not carry.
+ZH_DESCRIPTIONS = {
+    "ambient_config": "车内氛围灯颜色与模式",
+    "brake_test": "制动距离与减速 G 值",
+    "car_vitals": "水温、油温、油压与蓄电池电压",
+    "doom": "经典 FPS，车机上玩",
+    "draggy": "0-100、弹射起步与圈速计时",
+    "dtc_scanner": "读取与清除 DTC",
+    "dyno": "按加速数据推算轮上功率",
+    "edrive": "电机与电池实时数据",
+    "gforce": "纵向与横向加速度",
+    "live_adjustments": "BM3 配置与刷写状态",
+    "live_data": "发动机参数实时曲线",
+    "redline": "接近红线时提醒",
+    "service": "保养项目与里程提醒",
+    "warmup": "冷车暖机与限转提醒",
+    "zf8hp": "ZF 8HP 换挡与油温",
+    "leon_skin": "GT3 / Porsche / TEST 三套仪表盘",
 }
 
-# The head-unit tools' names live in mgu-repo.json, not in an app.json.
+# The head-unit tools' names live in mgu-repo.json, not in an app.json, and the
+# apps' dictionary does not translate them; their rows keep these two.
 TOOL_TITLES = {
     "idrive7-renderd": ("GPU 渲染器", "应用自己的 GPU 渲染器，60 fps 绘制，随应用一起安装"),
     "mgu-inputgate": ("按键网关", "把 iDrive 旋钮交给应用使用，下次启动加载"),
 }
 
 
+def zh_names():
+    """The app title -> its Chinese name, from the dictionary the build localizes
+    every title with. Empty when the dictionary is not in the tree."""
+    path = ROOT / "kit" / "runtime" / "locales" / "zh-CN.json"
+    if not path.is_file():
+        return {}
+    return json.loads(read(path))
+
+
 def zh_titles():
     """apps/<id>/app.json: the app's Chinese name for the Store.
 
-    Added only when the app carries no zh-CN title yet: an upstream translation
-    is never overwritten, so this stays a one-time fill per app. The Store reads
-    the entry straight from app.json (mgu-updater's sources.js, pick('texts')), so
-    the name lands on the car's next poll with no rebuild."""
+    The name is the one the build puts into the app itself (the same zh-CN
+    dictionary), so the Store row and the installed app never disagree. Added
+    only when the app carries no zh-CN title yet: an upstream translation is
+    never overwritten. The Store reads the entry straight from app.json
+    (mgu-updater's sources.js, pick('texts')), so it lands on the car's next poll
+    with no rebuild."""
+    names = zh_names()
     added = []
     for manifest in sorted((ROOT / "apps").glob("*/app.json")):
         doc = json.loads(read(manifest))
         app_id = doc.get("id") or manifest.parent.name
-        entry = ZH_TITLES.get(app_id)
-        if not entry:
+        title = doc.get("title") or ""
+        chinese = names.get(title)
+        if not chinese:
             continue
         texts = doc.get("texts")
         if not isinstance(texts, dict):
@@ -468,10 +487,10 @@ def zh_titles():
         zh = texts.get("zh-CN")
         if isinstance(zh, dict) and zh.get("title"):
             continue
-        texts["zh-CN"] = {"title": entry[0], "description": entry[1]}
+        texts["zh-CN"] = {"title": chinese, "description": ZH_DESCRIPTIONS.get(app_id, "")}
         doc["texts"] = texts
         write(manifest, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
-        added.append(app_id)
+        added.append("%s=%s" % (app_id, chinese))
     if not added:
         return "every app already names itself in Chinese"
     return "%d app(s) named in Chinese: %s" % (len(added), ", ".join(added))
@@ -538,13 +557,13 @@ def verify():
             fail("kit/runtime/locales/zh-CN.json: %r is not translated after patching" % key)
     if "zh-apps-kit: an app that names its own credit keeps it" not in read(ROOT / "kit" / "tools" / "build.py"):
         fail("build.py: the app's own credit is not honoured after patching")
+    names = zh_names()
     for manifest in sorted((ROOT / "apps").glob("*/app.json")):
         doc = json.loads(read(manifest))
-        app_id = doc.get("id") or manifest.parent.name
-        if app_id not in ZH_TITLES:
+        if (doc.get("title") or "") not in names:
             continue
-        names = (doc.get("texts") or {}).get("zh-CN") or {}
-        if not names.get("title"):
+        shown = (doc.get("texts") or {}).get("zh-CN") or {}
+        if not shown.get("title"):
             fail("%s: no zh-CN title after patching" % manifest.relative_to(ROOT))
     tools = json.loads(read(ROOT / "mgu-repo.json")).get("tools") or []
     for entry in tools:
