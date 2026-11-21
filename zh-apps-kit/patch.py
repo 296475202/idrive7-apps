@@ -441,6 +441,12 @@ ZH_TITLES = {
     "leon_skin": ("LEON 仪表皮肤", "GT3 / Porsche / TEST 三套仪表盘"),
 }
 
+# The head-unit tools' names live in mgu-repo.json, not in an app.json.
+TOOL_TITLES = {
+    "idrive7-renderd": ("GPU 渲染器", "应用自己的 GPU 渲染器，60 fps 绘制，随应用一起安装"),
+    "mgu-inputgate": ("按键网关", "把 iDrive 旋钮交给应用使用，下次启动加载"),
+}
+
 
 def zh_titles():
     """apps/<id>/app.json: the app's Chinese name for the Store.
@@ -469,6 +475,36 @@ def zh_titles():
     if not added:
         return "every app already names itself in Chinese"
     return "%d app(s) named in Chinese: %s" % (len(added), ", ".join(added))
+
+
+def zh_tools():
+    """mgu-repo.json: the head-unit tools' Chinese names for the Store.
+
+    A tool's title lives in mgu-repo.json itself (sources.js picks title and
+    texts from the repo entry), so this is the only place its row can be named
+    in Chinese."""
+    path = ROOT / "mgu-repo.json"
+    if not path.is_file():
+        fail("mgu-repo.json is not in the upstream tree")
+    doc = json.loads(read(path))
+    added = []
+    for entry in doc.get("tools") or []:
+        names = TOOL_TITLES.get(entry.get("id"))
+        if not names:
+            continue
+        texts = entry.get("texts")
+        if not isinstance(texts, dict):
+            texts = {}
+        zh = texts.get("zh-CN")
+        if isinstance(zh, dict) and zh.get("title"):
+            continue
+        texts["zh-CN"] = {"title": names[0], "description": names[1]}
+        entry["texts"] = texts
+        added.append(entry["id"])
+    if not added:
+        return "every tool already names itself in Chinese"
+    write(path, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+    return "%d tool(s) named in Chinese: %s" % (len(added), ", ".join(added))
 
 
 def verify():
@@ -510,6 +546,10 @@ def verify():
         names = (doc.get("texts") or {}).get("zh-CN") or {}
         if not names.get("title"):
             fail("%s: no zh-CN title after patching" % manifest.relative_to(ROOT))
+    tools = json.loads(read(ROOT / "mgu-repo.json")).get("tools") or []
+    for entry in tools:
+        if entry.get("id") in TOOL_TITLES and not ((entry.get("texts") or {}).get("zh-CN") or {}).get("title"):
+            fail("mgu-repo.json: %s has no zh-CN title after patching" % entry.get("id"))
     return "three tiers, %d ROMs, %s, plain build versions, the skin and every Chinese name verified" % (len(ROMS), ROM)
 
 
@@ -589,7 +629,7 @@ def main():
         fail("run this at the repository root (kit/tools/build.py not found)")
     steps = [credit(), rom_list(), protocol_fallback(), app_config(), repo_language(),
              build_version(), plain_version_assert(), test_expectations(), profile_count(),
-             leon_app(), leon_locale(), zh_titles(), repo_credits()]
+             leon_app(), leon_locale(), zh_titles(), zh_tools(), repo_credits()]
     for step in steps:
         print("zh-apps-kit: " + step)
     bumped = bump_versions()
