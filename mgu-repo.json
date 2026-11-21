@@ -38,7 +38,13 @@
       "mguHmi": [
         "ID7",
         "ID8"
-      ]
+      ],
+      "texts": {
+        "zh-CN": {
+          "title": "GPU 渲染器",
+          "description": "应用自己的 GPU 渲染器，60 fps 绘制，随应用一起安装"
+        }
+      }
     },
     {
       "id": "mgu-inputgate",
@@ -53,7 +59,13 @@
       "mguHmi": [
         "ID7",
         "ID8"
-      ]
+      ],
+      "texts": {
+        "zh-CN": {
+          "title": "按键网关",
+          "description": "把 iDrive 旋钮交给应用使用，下次启动加载"
+        }
+      }
     }
   ]
 }
