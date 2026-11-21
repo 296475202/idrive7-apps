@@ -165,7 +165,7 @@
   ],
   "texts": {
     "zh-CN": {
-      "title": "故障码扫描",
+      "title": "故障检测",
       "description": "读取与清除 DTC"
     }
   }
