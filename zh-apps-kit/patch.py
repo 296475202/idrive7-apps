@@ -418,6 +418,59 @@ def repo_credits():
     return "build.py: REPO_CREDITS now prefers the app's own credit"
 
 
+# The name each app carries in the Store, in Chinese. The base title stays
+# upstream's English: the Store's i18n.text() shows texts[<language>] when the
+# car's HMI language has one, so a zh-CN entry here is what makes the row
+# Chinese, and an English user still reads the upstream title.
+ZH_TITLES = {
+    "ambient_config": ("氛围灯配置", "车内氛围灯颜色与模式"),
+    "brake_test": ("刹车测试", "制动距离与减速 G 值"),
+    "car_vitals": ("车况监测", "水温、油温、油压与蓄电池电压"),
+    "doom": ("毁灭战士", "经典 FPS，车机上玩"),
+    "draggy": ("加速计时", "0-100、弹射起步与圈速计时"),
+    "dtc_scanner": ("故障码扫描", "读取与清除 DTC"),
+    "dyno": ("虚拟马力机", "按加速数据推算轮上功率"),
+    "edrive": ("电驱数据", "电机与电池实时数据"),
+    "gforce": ("G 值仪表", "纵向与横向加速度"),
+    "live_adjustments": ("实时调校", "BM3 配置与刷写状态"),
+    "live_data": ("实时数据", "发动机参数实时曲线"),
+    "redline": ("换挡提示", "接近红线时提醒"),
+    "service": ("保养助手", "保养项目与里程提醒"),
+    "warmup": ("暖机助手", "冷车暖机与限转提醒"),
+    "zf8hp": ("8HP 变速箱", "ZF 8HP 换挡与油温"),
+    "leon_skin": ("LEON 仪表皮肤", "GT3 / Porsche / TEST 三套仪表盘"),
+}
+
+
+def zh_titles():
+    """apps/<id>/app.json: the app's Chinese name for the Store.
+
+    Added only when the app carries no zh-CN title yet: an upstream translation
+    is never overwritten, so this stays a one-time fill per app. The Store reads
+    the entry straight from app.json (mgu-updater's sources.js, pick('texts')), so
+    the name lands on the car's next poll with no rebuild."""
+    added = []
+    for manifest in sorted((ROOT / "apps").glob("*/app.json")):
+        doc = json.loads(read(manifest))
+        app_id = doc.get("id") or manifest.parent.name
+        entry = ZH_TITLES.get(app_id)
+        if not entry:
+            continue
+        texts = doc.get("texts")
+        if not isinstance(texts, dict):
+            texts = {}
+        zh = texts.get("zh-CN")
+        if isinstance(zh, dict) and zh.get("title"):
+            continue
+        texts["zh-CN"] = {"title": entry[0], "description": entry[1]}
+        doc["texts"] = texts
+        write(manifest, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+        added.append(app_id)
+    if not added:
+        return "every app already names itself in Chinese"
+    return "%d app(s) named in Chinese: %s" % (len(added), ", ".join(added))
+
+
 def verify():
     """Re-read what was written: every tier, every ROM and the fallback must be there.
 
@@ -449,7 +502,15 @@ def verify():
             fail("kit/runtime/locales/zh-CN.json: %r is not translated after patching" % key)
     if "zh-apps-kit: an app that names its own credit keeps it" not in read(ROOT / "kit" / "tools" / "build.py"):
         fail("build.py: the app's own credit is not honoured after patching")
-    return "three tiers, %d ROMs, %s, plain build versions and the skin verified" % (len(ROMS), ROM)
+    for manifest in sorted((ROOT / "apps").glob("*/app.json")):
+        doc = json.loads(read(manifest))
+        app_id = doc.get("id") or manifest.parent.name
+        if app_id not in ZH_TITLES:
+            continue
+        names = (doc.get("texts") or {}).get("zh-CN") or {}
+        if not names.get("title"):
+            fail("%s: no zh-CN title after patching" % manifest.relative_to(ROOT))
+    return "three tiers, %d ROMs, %s, plain build versions, the skin and every Chinese name verified" % (len(ROMS), ROM)
 
 
 def version_tuple(text):
@@ -528,7 +589,7 @@ def main():
         fail("run this at the repository root (kit/tools/build.py not found)")
     steps = [credit(), rom_list(), protocol_fallback(), app_config(), repo_language(),
              build_version(), plain_version_assert(), test_expectations(), profile_count(),
-             leon_app(), leon_locale(), repo_credits()]
+             leon_app(), leon_locale(), zh_titles(), repo_credits()]
     for step in steps:
         print("zh-apps-kit: " + step)
     bumped = bump_versions()
