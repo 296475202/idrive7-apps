@@ -233,5 +233,11 @@
     "egsAddress": 24,
     "expectedSgbdIndex": "0F25D0",
     "readOnly": true
+  },
+  "texts": {
+    "zh-CN": {
+      "title": "8HP 变速箱",
+      "description": "ZF 8HP 换挡与油温"
+    }
   }
 }

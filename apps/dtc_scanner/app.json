@@ -162,5 +162,11 @@
         ]
       ]
     }
-  ]
+  ],
+  "texts": {
+    "zh-CN": {
+      "title": "故障码扫描",
+      "description": "读取与清除 DTC"
+    }
+  }
 }

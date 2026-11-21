@@ -301,5 +301,11 @@
   "config": {
     "bm3MarkerAddress": "807FFE50",
     "bm3RomFallback": "R4C9H6K5B"
+  },
+  "texts": {
+    "zh-CN": {
+      "title": "实时调校",
+      "description": "BM3 配置与刷写状态"
+    }
   }
 }

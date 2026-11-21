@@ -764,5 +764,11 @@
         }
       ]
     }
+  },
+  "texts": {
+    "zh-CN": {
+      "title": "LEON 仪表皮肤",
+      "description": "GT3 / Porsche / TEST 三套仪表盘"
+    }
   }
 }
