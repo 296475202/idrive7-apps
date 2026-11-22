@@ -418,6 +418,114 @@ def repo_credits():
     return "build.py: REPO_CREDITS now prefers the app's own credit"
 
 
+# The name each app carries in the Store, in Chinese. The base title stays
+# upstream's English: the Store's i18n.text() shows texts[<language>] when the
+# car's HMI language has one, so a zh-CN entry here is what makes the row
+# Chinese, and an English user still reads the upstream title.
+#
+# The name itself is read from kit/runtime/locales/zh-CN.json, the dictionary the
+# build localizes every app's own title with: the Store row then reads exactly
+# what the app calls itself once installed ("Transmission Config" -> 变速箱配置).
+# The second string is the description, which the dictionary does not carry.
+ZH_DESCRIPTIONS = {
+    "ambient_config": "车内氛围灯颜色与模式",
+    "brake_test": "制动距离与减速 G 值",
+    "car_vitals": "水温、油温、油压与蓄电池电压",
+    "doom": "经典 FPS，车机上玩",
+    "draggy": "0-100、弹射起步与圈速计时",
+    "dtc_scanner": "读取与清除 DTC",
+    "dyno": "按加速数据推算轮上功率",
+    "edrive": "电机与电池实时数据",
+    "gforce": "纵向与横向加速度",
+    "live_adjustments": "BM3 配置与刷写状态",
+    "live_data": "发动机参数实时曲线",
+    "redline": "接近红线时提醒",
+    "service": "保养项目与里程提醒",
+    "warmup": "冷车暖机与限转提醒",
+    "zf8hp": "ZF 8HP 换挡与油温",
+    "leon_skin": "GT3 / Porsche / TEST 三套仪表盘",
+}
+
+# The head-unit tools' names live in mgu-repo.json, not in an app.json, and the
+# apps' dictionary does not translate them; their rows keep these two.
+TOOL_TITLES = {
+    "idrive7-renderd": ("GPU 渲染器", "应用自己的 GPU 渲染器，60 fps 绘制，随应用一起安装"),
+    "mgu-inputgate": ("按键网关", "把 iDrive 旋钮交给应用使用，下次启动加载"),
+}
+
+
+def zh_names():
+    """The app title -> its Chinese name, from the dictionary the build localizes
+    every title with. Empty when the dictionary is not in the tree."""
+    path = ROOT / "kit" / "runtime" / "locales" / "zh-CN.json"
+    if not path.is_file():
+        return {}
+    return json.loads(read(path))
+
+
+def zh_titles():
+    """apps/<id>/app.json: the app's Chinese name for the Store.
+
+    The name is the one the build puts into the app itself (the same zh-CN
+    dictionary), so the Store row and the installed app never disagree. Added
+    only when the app carries no zh-CN title yet: an upstream translation is
+    never overwritten. The Store reads the entry straight from app.json
+    (mgu-updater's sources.js, pick('texts')), so it lands on the car's next poll
+    with no rebuild."""
+    names = zh_names()
+    added = []
+    for manifest in sorted((ROOT / "apps").glob("*/app.json")):
+        doc = json.loads(read(manifest))
+        app_id = doc.get("id") or manifest.parent.name
+        title = doc.get("title") or ""
+        chinese = names.get(title)
+        if not chinese:
+            continue
+        texts = doc.get("texts")
+        if not isinstance(texts, dict):
+            texts = {}
+        zh = texts.get("zh-CN")
+        if isinstance(zh, dict) and zh.get("title"):
+            continue
+        texts["zh-CN"] = {"title": chinese, "description": ZH_DESCRIPTIONS.get(app_id, "")}
+        doc["texts"] = texts
+        write(manifest, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+        added.append("%s=%s" % (app_id, chinese))
+    if not added:
+        return "every app already names itself in Chinese"
+    return "%d app(s) named in Chinese: %s" % (len(added), ", ".join(added))
+
+
+def zh_tools():
+    """mgu-repo.json: the head-unit tools' Chinese names for the Store.
+
+    A tool's title lives in mgu-repo.json itself (sources.js picks title and
+    texts from the repo entry), so this is the only place its row can be named
+    in Chinese."""
+    path = ROOT / "mgu-repo.json"
+    if not path.is_file():
+        fail("mgu-repo.json is not in the upstream tree")
+    doc = json.loads(read(path))
+    added = []
+    for entry in doc.get("tools") or []:
+        names = TOOL_TITLES.get(entry.get("id"))
+        if not names:
+            continue
+        texts = entry.get("texts")
+        if not isinstance(texts, dict):
+            texts = {}
+        zh = texts.get("zh-CN")
+        if isinstance(zh, dict) and zh.get("title"):
+            continue
+        texts["zh-CN"] = {"title": names[0], "description": names[1]}
+        entry["texts"] = texts
+        added.append(entry["id"])
+    if not added:
+        return "every tool already names itself in Chinese"
+    write(path, json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
+    return "%d tool(s) named in Chinese: %s" % (len(added), ", ".join(added))
+
+
 def verify():
     """Re-read what was written: every tier, every ROM and the fallback must be there.
 
@@ -449,7 +557,19 @@ def verify():
             fail("kit/runtime/locales/zh-CN.json: %r is not translated after patching" % key)
     if "zh-apps-kit: an app that names its own credit keeps it" not in read(ROOT / "kit" / "tools" / "build.py"):
         fail("build.py: the app's own credit is not honoured after patching")
-    return "three tiers, %d ROMs, %s, plain build versions and the skin verified" % (len(ROMS), ROM)
+    names = zh_names()
+    for manifest in sorted((ROOT / "apps").glob("*/app.json")):
+        doc = json.loads(read(manifest))
+        if (doc.get("title") or "") not in names:
+            continue
+        shown = (doc.get("texts") or {}).get("zh-CN") or {}
+        if not shown.get("title"):
+            fail("%s: no zh-CN title after patching" % manifest.relative_to(ROOT))
+    tools = json.loads(read(ROOT / "mgu-repo.json")).get("tools") or []
+    for entry in tools:
+        if entry.get("id") in TOOL_TITLES and not ((entry.get("texts") or {}).get("zh-CN") or {}).get("title"):
+            fail("mgu-repo.json: %s has no zh-CN title after patching" % entry.get("id"))
+    return "three tiers, %d ROMs, %s, plain build versions, the skin and every Chinese name verified" % (len(ROMS), ROM)
 
 
 def version_tuple(text):
@@ -528,7 +648,7 @@ def main():
         fail("run this at the repository root (kit/tools/build.py not found)")
     steps = [credit(), rom_list(), protocol_fallback(), app_config(), repo_language(),
              build_version(), plain_version_assert(), test_expectations(), profile_count(),
-             leon_app(), leon_locale(), repo_credits()]
+             leon_app(), leon_locale(), zh_titles(), zh_tools(), repo_credits()]
     for step in steps:
         print("zh-apps-kit: " + step)
     bumped = bump_versions()
